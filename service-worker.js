@@ -7,7 +7,7 @@
 // download the new version.
 // =========================================================
 
-const CACHE_VERSION = "farm-tracker-v4";
+const CACHE_VERSION = "farm-tracker-v5";
 
 // Files that make up the app (relative paths, so it works on GitHub Pages)
 const APP_SHELL = [

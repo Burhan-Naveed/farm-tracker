@@ -70,9 +70,9 @@
         <span>Farm Tracker</span>
       </div>
       <div class="header-actions">
-        <button id="install-btn" class="btn btn-light btn-small hidden">Install App</button>
+        <button id="install-btn" class="btn btn-light btn-small hidden">Install<span class="long-text">&nbsp;App</span></button>
         <span id="user-label" class="user-label"></span>
-        <button id="change-pass-btn" class="btn btn-light btn-small" title="Send a password reset email">Change password</button>
+        <button id="change-pass-btn" class="btn btn-light btn-small" title="Send a password reset email"><span class="long-text">Change password</span><span class="short-text">Password</span></button>
         <button class="btn btn-light btn-small" data-action="logout">Logout</button>
       </div>
     </header>
@@ -210,16 +210,34 @@
           <div class="segmented" id="rpt-view" role="tablist">
             <button type="button" data-view="total" class="active" role="tab">Total Report</button>
             <button type="button" data-view="farm" role="tab">Farm-wise</button>
+            <button type="button" data-view="head" role="tab">Head-wise</button>
           </div>
           <div class="report-toolbar">
             <div class="report-filters">
-              <div>
+              <!-- data-views = the report types that show this filter -->
+              <div data-views="total farm">
                 <label for="rpt-month">Month</label>
                 <input type="month" id="rpt-month">
               </div>
-              <div id="rpt-farm-wrap" class="hidden">
+              <div data-views="farm">
                 <label for="rpt-farm">Farm</label>
                 <select id="rpt-farm"></select>
+              </div>
+              <div data-views="head" class="wide">
+                <label for="rpt-head">Head</label>
+                <select id="rpt-head"></select>
+              </div>
+              <div data-views="head" class="wide">
+                <label for="rpt-hfarm">Farm</label>
+                <select id="rpt-hfarm"></select>
+              </div>
+              <div data-views="head">
+                <label for="rpt-from">From</label>
+                <input type="date" id="rpt-from">
+              </div>
+              <div data-views="head">
+                <label for="rpt-to">To</label>
+                <input type="date" id="rpt-to">
               </div>
             </div>
             <div class="admin-only report-export">
@@ -264,6 +282,32 @@
               <tbody id="farm-tx-body"></tbody>
             </table>
             <p id="farm-tx-empty" class="muted empty hidden">No transactions for this farm in this month.</p>
+          </div>
+        </div>
+
+        <!-- ===== Head-wise (one head, all farms or one farm, any date range) ===== -->
+        <div id="report-head" class="hidden">
+          <div id="head-summary" class="summary-cards"></div>
+
+          <div class="card table-wrap" id="head-farm-card">
+            <h3>Farm-wise breakdown</h3>
+            <table class="data-table report-table" id="head-farm-table"></table>
+          </div>
+
+          <div class="card table-wrap">
+            <h3>Month-wise breakdown</h3>
+            <table class="data-table report-table" id="head-month-table"></table>
+          </div>
+
+          <div class="card table-wrap">
+            <h3 id="head-tx-title">Transactions</h3>
+            <table class="data-table responsive-table">
+              <thead>
+                <tr><th>Date</th><th>Farm</th><th class="num">Amount</th><th>Paid By</th><th>Note</th><th class="no-print">Slip</th></tr>
+              </thead>
+              <tbody id="head-tx-body"></tbody>
+            </table>
+            <p id="head-tx-empty" class="muted empty hidden">No transactions for this head in this date range.</p>
           </div>
         </div>
       </section>

@@ -426,6 +426,10 @@ function setupStaticSelects() {
   const keepFarm = $("flt-farm").value;
   fillSelect($("flt-farm"), [{ value: "", label: "All farms" }, ...CONFIG.farms.map((f) => ({ value: f, label: f }))], keepFarm);
   fillSelect($("rpt-farm"), CONFIG.farms.map((f) => ({ value: f, label: f })), $("rpt-farm").value || CONFIG.farms[0]);
+  fillSelect($("rpt-hfarm"), [{ value: "", label: "All farms (total)" }, ...CONFIG.farms.map((f) => ({ value: f, label: f }))], $("rpt-hfarm").value);
+  // Head-wise report starts with this month so far
+  if (!$("rpt-from").value) $("rpt-from").value = currentMonthString() + "-01";
+  if (!$("rpt-to").value) $("rpt-to").value = todayString();
 }
 
 /**
@@ -455,6 +459,19 @@ function renderHeadOptions() {
   const keep = filter.value;
   fillSelect(filter, [{ value: "", label: "All heads" }, ...sortedHeads(state.heads).map((h) => ({ value: h.id, label: h.name }))]);
   if (state.heads.some((h) => h.id === keep)) filter.value = keep;
+
+  // Head-wise report: every head (inactive ones too, their old entries still count)
+  const rptHead = $("rpt-head");
+  const keepRpt = rptHead.value;
+  rptHead.innerHTML = ["Outflow", "Inflow"].map((type) => {
+    const group = sortedHeads(state.heads.filter((h) => h.type === type));
+    return group.length
+      ? `<optgroup label="${type}">` +
+        group.map((h) => `<option value="${escapeHtml(h.id)}">${escapeHtml(h.name)}${h.active ? "" : " (inactive)"}</option>`).join("") +
+        `</optgroup>`
+      : "";
+  }).join("");
+  if (state.heads.some((h) => h.id === keepRpt)) rptHead.value = keepRpt;
 }
 
 /** Clears the entry form. Date and Farm are kept for quick repeat entry, unless reset fully. */
@@ -911,6 +928,7 @@ $("export-list-btn").addEventListener("click", () => {
 $("export-report-btn").addEventListener("click", () => {
   const month = $("rpt-month").value || currentMonthString();
   if (state.reportView === "farm") { exportFarmReport(month, $("rpt-farm").value); return; }
+  if (state.reportView === "head") { exportHeadReport(); return; }
   const report = buildReport(month);
   const farms = CONFIG.farms;
   const rows = [["Head", "Type", ...farms.map((f) => f + " (PKR)"), "Total (PKR)"]];
@@ -1080,7 +1098,138 @@ function renderFarmReport(month, farm) {
     </tr>`).join("");
 }
 
-// Report type tabs (Total Report / Farm-wise)
+/** Reads the Head-wise filters. From/To are swapped if entered the wrong way round. */
+function headReportFilters() {
+  let from = $("rpt-from").value;
+  let to = $("rpt-to").value;
+  if (from && to && from > to) [from, to] = [to, from];
+  return { headId: $("rpt-head").value, farm: $("rpt-hfarm").value, from, to };
+}
+
+/** "2026-10-01" -> "01 Oct 2026" */
+const shortDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
+
+/** Text like "01 Oct 2026 to 14 Oct 2026" for titles and file names. */
+function rangeLabel(from, to) {
+  if (from && to) return `${shortDate(from)} to ${shortDate(to)}`;
+  if (from) return `from ${shortDate(from)}`;
+  if (to) return `up to ${shortDate(to)}`;
+  return "all dates";
+}
+
+/**
+ * Calculates one head's report: total, per farm, per month and every
+ * transaction (oldest first). farm = "" means all farms.
+ */
+function buildHeadReport({ headId, farm, from, to }) {
+  const entries = state.expenses
+    .filter((x) => x.headId === headId && (!farm || x.farm === farm) &&
+      (!from || x.date >= from) && (!to || x.date <= to))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdMs - b.createdMs);
+
+  const byFarm = zeroByFarm();
+  const byMonth = new Map();
+  let total = 0;
+  entries.forEach((x) => {
+    total = addMoney(total, x.amount);
+    if (x.farm in byFarm) byFarm[x.farm] = addMoney(byFarm[x.farm], x.amount);
+    const m = x.date.slice(0, 7);
+    byMonth.set(m, addMoney(byMonth.get(m) || 0, x.amount));
+  });
+  const amounts = entries.map((x) => Number(x.amount));
+  return {
+    entries, total, byFarm, byMonth,
+    largest: amounts.length ? Math.max(...amounts) : 0,
+    average: amounts.length ? total / amounts.length : 0
+  };
+}
+
+/** Draws the Head-wise view. */
+function renderHeadReport() {
+  const f = headReportFilters();
+  const head = state.heads.find((h) => h.id === f.headId);
+  if (!head) {
+    $("head-summary").innerHTML = `<div class="card"><p class="muted">Please select a head.</p></div>`;
+    ["head-farm-table", "head-month-table", "head-tx-body"].forEach((id) => { $(id).innerHTML = ""; });
+    return;
+  }
+  const r = buildHeadReport(f);
+  const typeClass = head.type === "Inflow" ? "type-inflow" : "type-outflow";
+  const where = f.farm || "All farms";
+  $("report-title").textContent = `${head.name} - ${where} - ${rangeLabel(f.from, f.to)}`;
+
+  $("head-summary").innerHTML = `
+    <div class="card summary-card overall">
+      <h3>${escapeHtml(head.name)} (${head.type})</h3>
+      <div class="summary-line"><span>${escapeHtml(where)}</span><b>${escapeHtml(rangeLabel(f.from, f.to))}</b></div>
+      <div class="summary-line net"><span>Total</span><b>${formatMoney(r.total)}</b></div>
+    </div>
+    <div class="card summary-card stat-card">
+      <h3>Details</h3>
+      <div class="summary-line"><span>Transactions</span><b>${r.entries.length}</b></div>
+      <div class="summary-line"><span>Average per entry</span><b>${formatMoney(r.average)}</b></div>
+      <div class="summary-line"><span>Largest entry</span><b>${formatMoney(r.largest)}</b></div>
+      <div class="summary-line net"><span>With slip 📎</span><b>${r.entries.filter((x) => x.hasAttachment).length}</b></div>
+    </div>`;
+
+  // Farm-wise breakdown (only useful when all farms are selected)
+  $("head-farm-card").classList.toggle("hidden", !!f.farm);
+  $("head-farm-table").innerHTML =
+    `<thead><tr><th>Farm</th><th class="num">Amount</th><th class="num">Share</th></tr></thead><tbody>` +
+    CONFIG.farms.map((farm) => `<tr><td>${escapeHtml(farm)}</td><td class="num ${typeClass}">${formatNumber(r.byFarm[farm])}</td>` +
+      `<td class="num">${r.total ? Math.round((r.byFarm[farm] / r.total) * 100) : 0}%</td></tr>`).join("") +
+    `<tr class="net-row"><td>Total</td><td class="num">${formatNumber(r.total)}</td><td class="num">${r.total ? "100%" : "0%"}</td></tr></tbody>`;
+
+  // Month-wise breakdown
+  const months = [...r.byMonth.entries()];
+  $("head-month-table").innerHTML =
+    `<thead><tr><th>Month</th><th class="num">Amount</th></tr></thead><tbody>` +
+    (months.length
+      ? months.map(([m, amount]) => `<tr><td>${monthLabelOf(m)}</td><td class="num ${typeClass}">${formatNumber(amount)}</td></tr>`).join("")
+      : `<tr><td class="muted" colspan="2">No entries</td></tr>`) +
+    `<tr class="net-row"><td>Total</td><td class="num">${formatNumber(r.total)}</td></tr></tbody>`;
+
+  // Transactions
+  $("head-tx-title").textContent = `Transactions (${r.entries.length})`;
+  $("head-tx-empty").classList.toggle("hidden", r.entries.length > 0);
+  $("head-tx-body").innerHTML = r.entries.map((x) => `
+    <tr>
+      <td data-label="Date">${escapeHtml(x.date)}</td>
+      <td data-label="Farm">${escapeHtml(x.farm)}</td>
+      <td data-label="Amount" class="num ${typeClass}">${formatMoney(x.amount)}</td>
+      <td data-label="Paid By">${escapeHtml(x.paidBy)}</td>
+      <td data-label="Note">${escapeHtml(x.note)}</td>
+      <td class="actions no-print">${x.hasAttachment ? `<button class="btn btn-light btn-small" data-view="${x.id}">📎 Slip</button>` : `<span class="muted">-</span>`}</td>
+    </tr>`).join("");
+}
+
+/** Exports the Head-wise report: summary, farm and month breakdown, then every transaction. */
+function exportHeadReport() {
+  const f = headReportFilters();
+  const head = state.heads.find((h) => h.id === f.headId);
+  if (!head) { showToast("Please select a head.", true); return; }
+  const r = buildHeadReport(f);
+  const rows = [
+    [`${head.name} (${head.type})`], ["Farm", f.farm || "All farms"], ["Dates", rangeLabel(f.from, f.to)],
+    ["Total (PKR)", r.total], ["Transactions", r.entries.length], []
+  ];
+  if (!f.farm) {
+    rows.push(["Farm", "Amount (PKR)"], ...CONFIG.farms.map((farm) => [farm, r.byFarm[farm]]), []);
+  }
+  rows.push(["Month", "Amount (PKR)"], ...[...r.byMonth.entries()].map(([m, a]) => [monthLabelOf(m), a]), []);
+  rows.push(["Date", "Farm", "Amount (PKR)", "Paid By", "Note", "Attachment"]);
+  r.entries.forEach((x) => rows.push([x.date, x.farm, Number(x.amount), x.paidBy, x.note || "", x.hasAttachment ? "Yes" : "No"]));
+  const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  downloadCsv(`${slug(head.name)}-${slug(f.farm || "all-farms")}-${f.from || "start"}_to_${f.to || "today"}.csv`, rows);
+}
+
+["rpt-head", "rpt-hfarm", "rpt-from", "rpt-to"].forEach((id) => $(id).addEventListener("input", renderReports));
+$("head-tx-body").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-view]");
+  if (btn) viewAttachment(btn.dataset.view);
+});
+
+// Report type tabs (Total Report / Farm-wise / Head-wise)
 $("rpt-view").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-view]");
   if (!btn || btn.dataset.view === state.reportView) return;
@@ -1101,12 +1250,17 @@ function renderReports() {
   const farms = CONFIG.farms;
   const monthLabel = monthLabelOf(month);
 
-  const farmView = state.reportView === "farm";
-  $("report-total").classList.toggle("hidden", farmView);
-  $("report-farm").classList.toggle("hidden", !farmView);
-  $("rpt-farm-wrap").classList.toggle("hidden", !farmView);
-  document.querySelectorAll("#rpt-view button").forEach((b) => b.classList.toggle("active", b.dataset.view === state.reportView));
-  if (farmView) { renderFarmReport(month, $("rpt-farm").value || farms[0]); return; }
+  // Show only the section and filters of the chosen report type
+  const view = state.reportView;
+  $("report-total").classList.toggle("hidden", view !== "total");
+  $("report-farm").classList.toggle("hidden", view !== "farm");
+  $("report-head").classList.toggle("hidden", view !== "head");
+  document.querySelectorAll(".report-filters [data-views]").forEach((el) =>
+    el.classList.toggle("hidden", !el.dataset.views.split(" ").includes(view))
+  );
+  document.querySelectorAll("#rpt-view button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  if (view === "farm") { renderFarmReport(month, $("rpt-farm").value || farms[0]); return; }
+  if (view === "head") { renderHeadReport(); return; }
 
   $("report-title").textContent = "Farm Report - " + monthLabel;
 
