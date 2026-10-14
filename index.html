@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farm Tracker</title>
+  <meta name="description" content="Daily income and expense tracker for 3 farms">
+  <meta name="theme-color" content="#f5f4ff">
+
+  <!-- PWA: manifest and icons -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Farm Tracker">
+
+  <!-- Font: Inter, close to the iPhone system font (falls back to system fonts when offline) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+
+  <link rel="stylesheet" href="./style.css">
+
+  <!-- Chart.js (for the bar chart on the Reports page) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+</head>
+<body>
+
+  <!-- Loading screen: shown until Firebase tells us if the user is logged in -->
+  <div id="loading-view" class="center-view">
+    <div class="spinner"></div>
+    <p>Loading…</p>
+  </div>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="login-view" class="center-view hero-bg hidden">
+    <form id="login-form" class="card login-card" novalidate>
+      <img src="./icons/icon-192.png" alt="" class="login-logo">
+      <h1>Farm Tracker</h1>
+      <p class="muted">Welcome back! Sign in to continue</p>
+
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" autocomplete="username" required>
+
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" autocomplete="current-password" required>
+
+      <p id="login-error" class="msg error hidden"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="login-btn">Sign in</button>
+      <button type="button" class="btn-link" id="forgot-btn">Forgot password?</button>
+    </form>
+    <p class="credit">Designed by <b>Burhan Naveed</b></p>
+  </div>
+
+  <!-- ===================== ACCESS DENIED ===================== -->
+  <div id="denied-view" class="center-view hero-bg hidden">
+    <div class="card login-card">
+      <h1>Access denied</h1>
+      <p id="denied-msg">Your account does not have access to this app. Please contact the Admin.</p>
+      <button class="btn btn-primary btn-block" data-action="logout">Logout</button>
+    </div>
+  </div>
+
+  <!-- ===================== MAIN APP ===================== -->
+  <div id="app-view" class="hidden">
+    <header class="app-header">
+      <div class="brand">
+        <img src="./icons/icon-192.png" alt="">
+        <span>Farm Tracker</span>
+      </div>
+      <div class="header-actions">
+        <button id="install-btn" class="btn btn-light btn-small hidden">Install App</button>
+        <span id="user-label" class="user-label"></span>
+        <button id="change-pass-btn" class="btn btn-light btn-small" title="Send a password reset email">Change password</button>
+        <button class="btn btn-light btn-small" data-action="logout">Logout</button>
+      </div>
+    </header>
+
+    <!-- Navigation tabs (hidden per role in app.js) -->
+    <nav class="tabs" id="tabs">
+      <button data-page="add" class="admin-only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+        <span>Add Entry</span>
+      </button>
+      <button data-page="list" class="admin-only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>
+        <span>Entries</span>
+      </button>
+      <button data-page="reports">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><rect x="5" y="11" width="3" height="6" rx="1"/><rect x="10.5" y="6" width="3" height="11" rx="1"/><rect x="16" y="9" width="3" height="8" rx="1"/></svg>
+        <span>Reports</span>
+      </button>
+      <button data-page="heads" class="admin-only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4h8l9 9-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg>
+        <span>Heads</span>
+      </button>
+      <button data-page="users" class="admin-only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.8.7 3 2.4 3.5 5.2"/></svg>
+        <span>Users</span>
+      </button>
+    </nav>
+
+    <div id="offline-banner" class="offline-banner hidden">You are offline. Entries will sync when internet returns.</div>
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Attachment viewer (slip / bill) -->
+    <div id="viewer" class="viewer hidden" role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+      <div class="viewer-sheet">
+        <div class="viewer-head">
+          <b id="viewer-title">Attachment</b>
+          <button type="button" class="btn btn-light btn-small" id="viewer-close-btn">Close</button>
+        </div>
+        <div id="viewer-body" class="viewer-body"></div>
+        <div class="viewer-actions">
+          <a id="viewer-download" class="btn btn-primary" download>Download</a>
+        </div>
+      </div>
+    </div>
+
+    <main>
+      <!-- ---------- ADD / EDIT ENTRY ---------- -->
+      <section id="page-add" class="page hidden">
+        <form id="expense-form" class="card form-card" novalidate>
+          <h2 id="expense-form-title">Add Entry</h2>
+
+          <label for="f-date">Date</label>
+          <input type="date" id="f-date" required>
+
+          <label for="f-farm">Farm</label>
+          <select id="f-farm" required></select>
+
+          <label for="f-head">Head</label>
+          <select id="f-head" required></select>
+
+          <label for="f-amount">Amount (PKR)</label>
+          <input type="number" id="f-amount" inputmode="numeric" step="1" min="1" placeholder="0" required>
+
+          <label for="f-paidby">Paid By</label>
+          <select id="f-paidby" required></select>
+
+          <label for="f-note">Note <span class="muted">(optional)</span></label>
+          <input type="text" id="f-note" maxlength="200" placeholder="e.g. Tractor diesel">
+
+          <label>Attachment <span class="muted">(optional: slip, online receipt or bill)</span></label>
+          <input type="file" id="f-attach" accept="image/*,application/pdf" class="hidden">
+          <button type="button" class="attach-pick" id="attach-pick-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.9-8.9a3.7 3.7 0 0 1 5.2 5.2l-8.9 8.9a1.8 1.8 0 0 1-2.6-2.6l8.2-8.2"/></svg>
+            <span>Add photo or PDF</span>
+          </button>
+          <div id="attach-preview" class="attach-preview hidden">
+            <img id="attach-thumb" alt="" class="hidden">
+            <div id="attach-pdf-icon" class="attach-pdf-icon hidden">PDF</div>
+            <div class="attach-info">
+              <b id="attach-name"></b>
+              <span id="attach-size" class="muted small"></span>
+            </div>
+            <button type="button" class="btn btn-light btn-small hidden" id="attach-view-btn">View</button>
+            <button type="button" class="btn btn-danger btn-small" id="attach-remove-btn">Remove</button>
+          </div>
+
+          <p id="expense-error" class="msg error hidden"></p>
+          <div class="form-buttons">
+            <button type="submit" class="btn btn-primary btn-big" id="expense-save-btn">Save</button>
+            <button type="button" class="btn btn-light btn-big hidden" id="expense-cancel-btn">Cancel</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ---------- ENTRIES LIST ---------- -->
+      <section id="page-list" class="page hidden">
+        <div class="card">
+          <div class="filters">
+            <div><label for="flt-farm">Farm</label><select id="flt-farm"></select></div>
+            <div><label for="flt-head">Head</label><select id="flt-head"></select></div>
+            <div><label for="flt-type">Type</label>
+              <select id="flt-type">
+                <option value="">All</option>
+                <option value="Inflow">Inflow</option>
+                <option value="Outflow">Outflow</option>
+              </select>
+            </div>
+            <div><label for="flt-from">From</label><input type="date" id="flt-from"></div>
+            <div><label for="flt-to">To</label><input type="date" id="flt-to"></div>
+            <div><label for="flt-search">Search note</label><input type="search" id="flt-search" placeholder="Search…"></div>
+          </div>
+          <div class="list-toolbar">
+            <span id="list-summary" class="muted"></span>
+            <div>
+              <button class="btn btn-light btn-small" id="flt-clear">Clear filters</button>
+              <button class="btn btn-primary btn-small" id="export-list-btn">Export CSV</button>
+            </div>
+          </div>
+        </div>
+        <div class="card table-wrap">
+          <table class="data-table responsive-table">
+            <thead>
+              <tr><th>Date</th><th>Farm</th><th>Head</th><th>Type</th><th class="num">Amount</th><th>Paid By</th><th>Note</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="list-body"></tbody>
+          </table>
+          <p id="list-empty" class="muted empty hidden">No entries found.</p>
+        </div>
+      </section>
+
+      <!-- ---------- REPORTS ---------- -->
+      <section id="page-reports" class="page hidden">
+        <div class="card report-toolbar-card">
+          <!-- Report type: all farms together, or one farm with its transactions -->
+          <div class="segmented" id="rpt-view" role="tablist">
+            <button type="button" data-view="total" class="active" role="tab">Total Report</button>
+            <button type="button" data-view="farm" role="tab">Farm-wise</button>
+          </div>
+          <div class="report-toolbar">
+            <div class="report-filters">
+              <div>
+                <label for="rpt-month">Month</label>
+                <input type="month" id="rpt-month">
+              </div>
+              <div id="rpt-farm-wrap" class="hidden">
+                <label for="rpt-farm">Farm</label>
+                <select id="rpt-farm"></select>
+              </div>
+            </div>
+            <div class="admin-only report-export">
+              <button class="btn btn-primary btn-small" id="export-report-btn">Export CSV</button>
+              <button class="btn btn-light btn-small" id="print-report-btn">Print / PDF</button>
+            </div>
+          </div>
+        </div>
+
+        <h2 class="print-title" id="report-title"></h2>
+
+        <!-- ===== Total Report (all farms) ===== -->
+        <div id="report-total">
+          <div id="summary-cards" class="summary-cards"></div>
+
+          <div class="card table-wrap">
+            <h3>Farm-wise report</h3>
+            <table class="data-table report-table" id="report-table"></table>
+          </div>
+
+          <div class="card chart-card no-print">
+            <h3>Inflow and Outflow per farm</h3>
+            <div class="chart-box"><canvas id="report-chart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- ===== Farm-wise (one farm, with its transactions) ===== -->
+        <div id="report-farm" class="hidden">
+          <div id="farm-summary" class="summary-cards"></div>
+
+          <div class="card table-wrap">
+            <h3>Head-wise totals</h3>
+            <table class="data-table report-table" id="farm-head-table"></table>
+          </div>
+
+          <div class="card table-wrap">
+            <h3 id="farm-tx-title">Transactions</h3>
+            <table class="data-table responsive-table">
+              <thead>
+                <tr><th>Date</th><th>Head</th><th>Type</th><th class="num">Amount</th><th>Paid By</th><th>Note</th><th class="no-print">Slip</th></tr>
+              </thead>
+              <tbody id="farm-tx-body"></tbody>
+            </table>
+            <p id="farm-tx-empty" class="muted empty hidden">No transactions for this farm in this month.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- HEADS (Admin) ---------- -->
+      <section id="page-heads" class="page hidden">
+        <form id="head-form" class="card form-card" novalidate>
+          <h2 id="head-form-title">Add Head</h2>
+          <label for="h-name">Head name</label>
+          <input type="text" id="h-name" maxlength="50" required>
+          <label for="h-type">Type</label>
+          <select id="h-type" required>
+            <option value="">Select type</option>
+            <option value="Inflow">Inflow</option>
+            <option value="Outflow">Outflow</option>
+          </select>
+          <p id="head-error" class="msg error hidden"></p>
+          <div class="form-buttons">
+            <button type="submit" class="btn btn-primary" id="head-save-btn">Add Head</button>
+            <button type="button" class="btn btn-light hidden" id="head-cancel-btn">Cancel</button>
+          </div>
+        </form>
+        <div class="card table-wrap">
+          <table class="data-table responsive-table">
+            <thead><tr><th>Head</th><th>Type</th><th>Status</th><th class="num">Entries</th><th>Actions</th></tr></thead>
+            <tbody id="heads-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---------- USERS (Admin) ---------- -->
+      <section id="page-users" class="page hidden">
+        <form id="user-form" class="card form-card" novalidate>
+          <h2>Add User</h2>
+          <p class="muted small">
+            First create the login in Firebase Console &gt; Authentication &gt; Users &gt; Add user.
+            Then copy that user's <b>User UID</b> from the same list and paste it here.
+          </p>
+          <label for="u-name">Name</label>
+          <input type="text" id="u-name" maxlength="60" required>
+          <label for="u-email">Email</label>
+          <input type="email" id="u-email" required>
+          <label for="u-uid">User UID (from Firebase Console)</label>
+          <input type="text" id="u-uid" required autocomplete="off" spellcheck="false">
+          <label for="u-role">Role</label>
+          <select id="u-role">
+            <option value="staff">Staff (view reports only)</option>
+            <option value="admin">Admin (full access)</option>
+          </select>
+          <p id="user-error" class="msg error hidden"></p>
+          <button type="submit" class="btn btn-primary" id="user-save-btn">Add User</button>
+        </form>
+        <div class="card table-wrap">
+          <table class="data-table responsive-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="users-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <footer class="credit app-credit">Designed by <b>Burhan Naveed</b></footer>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The logged-in user's record from the "users" collection
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    // Logged in AND has an active record in "users" (Auth alone is not enough)
+    function isActive() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().status == 'active';
+    }
+    function isAdmin() {
+      return isActive() && userDoc().role == 'admin';
+    }
+
+    match /users/{uid} {
+      allow read: if isActive();
+      allow write: if isAdmin();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isActive();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /heads/{headId} {
+      allow read: if isActive();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Payment slip / bill for an entry (same id as the entry)
+    match /attachments/{expenseId} {
+      allow read: if isActive();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Admin change history (who changed what, when). Entries cannot be edited or deleted.
+    match /auditLog/{logId} {
+      allow read, create: if isAdmin();
+    }
+  }
+}

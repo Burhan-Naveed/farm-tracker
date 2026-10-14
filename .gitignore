@@ -1,0 +1,4 @@
+# Not published: private spec and local backups
+PRD.md
+backup-*/
+_preview*.html
