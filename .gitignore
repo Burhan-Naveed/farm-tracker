@@ -2,3 +2,17 @@
 PRD.md
 backup-*/
 _preview*.html
+
+# Development tooling output
+node_modules/
+test-results/
+playwright-report/
+*-debug.log
+.firebase/
+
+# Secrets (never commit)
+.env
+.env.*
+
+# Personal editor settings
+.vscode/
