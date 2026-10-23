@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Security: only load code and data from the app itself, Firebase, Google Fonts and cdnjs.
        Blocks injected scripts even if some text were ever shown unescaped.
-       127.0.0.1 is only used by the local test emulators. -->
+       127.0.0.1 is only used by the local test emulators.
+       Inline styles are allowed because Google sign-in (for Drive backups) sets them; styles cannot run code. -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com https://apis.google.com;
-    style-src 'self' https://fonts.googleapis.com;
+    script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com https://apis.google.com https://accounts.google.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com;
     font-src https://fonts.gstatic.com;
     img-src 'self' data: blob: https://www.google.com;
-    connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.gstatic.com https://fonts.gstatic.com https://cdnjs.cloudflare.com http://127.0.0.1:9099 http://127.0.0.1:8080;
-    frame-src https://farm-transaction-tracker.firebaseapp.com http://127.0.0.1:9099;
+    connect-src 'self' https://*.googleapis.com https://apis.google.com https://accounts.google.com https://www.google.com https://www.gstatic.com https://fonts.gstatic.com https://cdnjs.cloudflare.com http://127.0.0.1:9099 http://127.0.0.1:8080;
+    frame-src https://farm-transaction-tracker.firebaseapp.com https://accounts.google.com http://127.0.0.1:9099;
     worker-src 'self';
     manifest-src 'self';
     object-src 'none';
@@ -386,6 +387,27 @@
             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
             <tbody id="users-body"></tbody>
           </table>
+        </div>
+
+        <!-- Backup to Google Drive (Admin) -->
+        <div class="card form-card" id="backup-card">
+          <h2>Backup (Google Drive)</h2>
+          <p class="muted small">
+            Saves all entries, heads, users and the change history (not the slip photos) in the file
+            "farm-tracker-backup.json" (folder "Farm Tracker Backups") of the Google Drive of <b>farmexpensestracker@gmail.com</b> (choose this
+            account in the Google window). Each backup replaces the previous one.
+          </p>
+          <p class="small" id="backup-last">Last backup: checking…</p>
+          <p id="backup-msg" class="msg hidden"></p>
+          <div class="form-buttons">
+            <button type="button" class="btn btn-primary" id="backup-btn">Backup now</button>
+            <button type="button" class="btn btn-light" id="restore-btn">Restore from backup</button>
+          </div>
+          <p class="muted small">
+            Restore only adds entries and heads that are missing now. Existing data is never changed or deleted.
+            Users are not restored (add them again on this page).
+          </p>
+          </div>
         </div>
       </section>
       <footer class="credit app-credit">Designed by <b>Burhan Naveed</b></footer>

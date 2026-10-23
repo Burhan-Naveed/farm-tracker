@@ -8,7 +8,7 @@
 // =========================================================
 
 import {
-  collection, doc, setDoc, updateDoc, deleteDoc, addDoc, getDoc, getDocs, onSnapshot,
+  collection, doc, setDoc, updateDoc, deleteDoc, addDoc, getDoc, getDocs, getDocsFromServer, onSnapshot,
   query, where, orderBy, limit, writeBatch, serverTimestamp,
   waitForPendingWrites, terminate, clearIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
@@ -225,6 +225,51 @@ function commitInBatches(writes) {
     commits.push(batch.commit());
   }
   return Promise.all(commits);
+}
+
+// ---------------------------------------------------------
+// Backup and restore
+// ---------------------------------------------------------
+
+/** Reads whole collections from the server (not the offline copy): { name: [{ id, ...fields }] }. */
+export async function fetchCollections(names) {
+  const entries = await Promise.all(names.map(async (name) => {
+    const snap = await getDocsFromServer(collection(db, name));
+    return [name, snap.docs.map((d) => ({ id: d.id, ...d.data() }))];
+  }));
+  return Object.fromEntries(entries);
+}
+
+/** The newest audit-log record of an action (e.g. the last backup), or null. */
+export async function latestAuditRecord(action) {
+  const snap = await getDocs(query(collection(db, "auditLog"), where("action", "==", action), orderBy("at", "desc"), limit(1)));
+  return snap.empty ? null : snap.docs[0].data();
+}
+
+/**
+ * Adds missing heads back. Heads are always created active (the rules require it),
+ * then the ones that were inactive are switched off.
+ */
+export async function restoreHeads(heads, actor) {
+  await commitInBatches(heads.map((h) => (batch) => batch.set(doc(db, "heads", h.id), {
+    name: h.name, type: h.type, active: true, isDefault: h.isDefault, createdBy: actor.uid, createdAt: serverTimestamp()
+  })));
+  const inactive = heads.filter((h) => !h.active);
+  await commitInBatches(inactive.map((h) => (batch) => batch.update(doc(db, "heads", h.id), { active: false })));
+}
+
+/**
+ * Adds missing entries back with their original ids. Entries are grouped
+ * by head, so each batch checks only a few documents in the security rules.
+ */
+export async function restoreEntries(entries, actor) {
+  const byHead = new Map();
+  entries.forEach((x) => byHead.set(x.headId, [...(byHead.get(x.headId) || []), x]));
+  for (const group of byHead.values()) {
+    await commitInBatches(group.map(({ id, ...fields }) => (batch) => batch.set(doc(db, "expenses", id), {
+      ...fields, createdBy: actor.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+    })));
+  }
 }
 
 // ---------------------------------------------------------

@@ -12,6 +12,7 @@ import { logError } from "./lib/errors.js";
 import { watchAuth } from "./services/auth.js";
 import { seedDefaultHeads, watchExpenses, watchHeads, watchProfile, watchUsers, wipeLocalData } from "./services/data.js";
 import { clearData, currentActor, isAdmin, setHeads, state } from "./state.js";
+import { initBackupPanel } from "./ui/backup-panel.js";
 import { $, setHidden } from "./ui/dom.js";
 import { initEntriesPage, refreshEntryFilters } from "./ui/entries-page.js";
 import { initEntryForm, refreshHeadOptions, resetEntryForm } from "./ui/entry-form.js";
@@ -178,6 +179,7 @@ initEntriesPage();
 initReportsPage();
 initHeadsPage();
 initUsersPage();
+initBackupPanel();
 initPwa();
 $("tabs").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-page]");

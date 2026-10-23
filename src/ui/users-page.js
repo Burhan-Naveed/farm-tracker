@@ -8,6 +8,7 @@ import { toDateString } from "../lib/format.js";
 import { escapeHtml, tableRowsHtml } from "../lib/html.js";
 import { createUser, logAudit, setUserRole, setUserStatus } from "../services/data.js";
 import { currentActor, isAdmin, state } from "../state.js";
+import { renderBackupPanel } from "./backup-panel.js";
 import { $, readInputs, showFormError } from "./dom.js";
 import { onWriteError, showToast } from "./feedback.js";
 import { registerPage } from "./navigation.js";
@@ -37,6 +38,7 @@ const COLUMNS = [
 
 function renderUsers() {
   $("users-body").innerHTML = tableRowsHtml(COLUMNS, sortedUsers(state.users));
+  renderBackupPanel();
 }
 
 /** Adds a user record. The document ID must be the user's Auth UID. */

@@ -44,6 +44,7 @@ test.describe("reports", () => {
     await seedMonth(admin);
     await login(page, admin.email);
     await openReports(page);
+    await expect(summary(page, 0)).toContainText("PKR 50,000");   // data has loaded
     const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-report-btn").click()]);
     expect(download.suggestedFilename()).toBe("farm-report-2026-10.csv");
     const lines = (await readDownload(download)).slice(1).split("\r\n");

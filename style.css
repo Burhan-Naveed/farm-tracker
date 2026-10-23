@@ -813,3 +813,7 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
   .ledger-table .ledger-total td:first-child { background: #ebe8ff; }
   .ledger-table .ledger-opening td:first-child { background: #faf9ff; }
 }
+
+/* ---------- Backup card ---------- */
+.msg.ok { background: var(--inflow-soft); color: var(--inflow); }
+#backup-card .form-buttons { flex-wrap: wrap; }

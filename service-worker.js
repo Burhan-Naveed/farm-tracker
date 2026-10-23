@@ -7,7 +7,7 @@
 // download the new version.
 // =========================================================
 
-const CACHE_VERSION = "farm-tracker-v8";
+const CACHE_VERSION = "farm-tracker-v9";
 
 // Files that make up the app (relative paths, so it works on GitHub Pages).
 // Every file in src/ must be listed here (a unit test checks this).
@@ -24,6 +24,7 @@ const APP_SHELL = [
   "./src/firebase.js",
   "./src/state.js",
   "./src/domain/attachments.js",
+  "./src/domain/backup.js",
   "./src/domain/entries.js",
   "./src/domain/heads.js",
   "./src/domain/ledger.js",
@@ -36,6 +37,8 @@ const APP_SHELL = [
   "./src/lib/image.js",
   "./src/services/auth.js",
   "./src/services/data.js",
+  "./src/services/drive.js",
+  "./src/ui/backup-panel.js",
   "./src/ui/chart.js",
   "./src/ui/components.js",
   "./src/ui/dom.js",

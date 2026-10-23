@@ -45,6 +45,19 @@ export const LIMITS = Object.freeze({
   auditDetailsMax: 500
 });
 
+/**
+ * Google Drive backups. The OAuth client ID is a public identifier (not a secret);
+ * it only works on the web addresses allowed in Google Cloud Console.
+ * Leave clientId empty to hide Drive backups.
+ */
+export const GOOGLE_DRIVE = Object.freeze({
+  clientId: "89212496483-42lapkqen0mbe5l4oo3eeiih9pg9iptp.apps.googleusercontent.com",
+  accountEmail: "farmexpensestracker@gmail.com",           // backups go only to this Google account's Drive
+  scope: "https://www.googleapis.com/auth/drive.file",   // only files this app creates
+  folderName: "Farm Tracker Backups",
+  fileName: "farm-tracker-backup.json"                       // one file, replaced by every backup
+});
+
 /** Attachment (slip / bill) limits. Firestore documents can be at most 1 MB. */
 export const ATTACHMENT = Object.freeze({
   maxChars: 900000,            // max length of the stored data URL (about 650 KB of file)
