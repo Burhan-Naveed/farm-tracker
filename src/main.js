@@ -13,12 +13,13 @@ import { watchAuth } from "./services/auth.js";
 import { seedDefaultHeads, watchExpenses, watchHeads, watchProfile, watchUsers, wipeLocalData } from "./services/data.js";
 import { clearData, currentActor, isAdmin, setHeads, state } from "./state.js";
 import { initBackupPanel } from "./ui/backup-panel.js";
+import { initDashboard } from "./ui/dashboard-page.js";
 import { $, setHidden } from "./ui/dom.js";
 import { initEntriesPage, refreshEntryFilters } from "./ui/entries-page.js";
 import { initEntryForm, refreshHeadOptions, resetEntryForm } from "./ui/entry-form.js";
 import { onWriteError, reportError } from "./ui/feedback.js";
 import { initHeadsPage } from "./ui/heads-page.js";
-import { getCurrentPage, renderAllPages, renderCurrentPage, showPage, showView } from "./ui/navigation.js";
+import { HOME_PAGE, getCurrentPage, renderAllPages, renderCurrentPage, showPage, showView } from "./ui/navigation.js";
 import { initPwa } from "./ui/pwa.js";
 import { initReportsPage, refreshReportHeadOptions } from "./ui/reports-page.js";
 import { initSession } from "./ui/session.js";
@@ -118,7 +119,7 @@ function startApp() {
   showView("app");
   resetEntryForm();
   startDataListeners();
-  showPage(isAdmin() ? (getCurrentPage() || "add") : "reports");
+  showPage(getCurrentPage() || HOME_PAGE);
 }
 
 /**
@@ -174,6 +175,7 @@ function handleAuthChange(user) {
 
 initSession();
 initViewer();
+initDashboard();
 initEntryForm();
 initEntriesPage();
 initReportsPage();

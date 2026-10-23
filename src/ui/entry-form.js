@@ -6,13 +6,14 @@
 import { CONFIG } from "../config.js";
 import { attachmentError, dataUrlBytes, fileKind, storedFileName } from "../domain/attachments.js";
 import { validateEntry } from "../domain/entries.js";
-import { formatSize, todayString } from "../lib/format.js";
+import { headNameOf } from "../domain/heads.js";
+import { formatMoney, formatSize, todayString } from "../lib/format.js";
 import { optionsHtml } from "../lib/html.js";
 import { compressImage, readAsDataUrl } from "../lib/image.js";
 import { logError } from "../lib/errors.js";
 import { createEntry, updateEntry } from "../services/data.js";
 import { currentActor, isAdmin, state } from "../state.js";
-import { headGroupsHtml, farmOptions } from "./components.js";
+import { farmOptions, headGroupsHtml, paidByOptions } from "./components.js";
 import { $, fillSelect, readInputs, setHidden, showFormError } from "./dom.js";
 import { onWriteError, showToast } from "./feedback.js";
 import { registerPage, showPage } from "./navigation.js";
@@ -25,15 +26,34 @@ const form = {
   pickToken: 0            // changes when the attachment is cleared, so a slow file read is ignored
 };
 
+/** Form field ids, by the field names used in validateEntry. */
+const FIELD_IDS = { date: "f-date", farm: "f-farm", headId: "f-head", amount: "f-amount", paidBy: "f-paidby", note: "f-note" };
+
 const editingEntry = () => (form.editingId ? state.expenses.find((x) => x.id === form.editingId) : null);
 
 /** Fills the dropdowns that never change (farms and Paid By). */
 function fillStaticSelects() {
   fillSelect($("f-farm"), farmOptions("Select farm"), "");
-  fillSelect($("f-paidby"), CONFIG.paidByOptions.map((p) => ({ value: p, label: p })), CONFIG.defaultPaidBy);
+  fillSelect($("f-paidby"), paidByOptions(), CONFIG.defaultPaidBy);
 }
 
-/** Fills the Head dropdown: active heads, grouped by Inflow / Outflow (plus the edited entry's own head). */
+/** Shows the form error and marks (and focuses) the field it belongs to. Empty message = clear. */
+function showFieldError(field, message) {
+  Object.values(FIELD_IDS).forEach((id) => $(id).removeAttribute("aria-invalid"));
+  showFormError("expense-error", message);
+  if (message && FIELD_IDS[field]) {
+    $(FIELD_IDS[field]).setAttribute("aria-invalid", "true");
+    $(FIELD_IDS[field]).focus();
+  }
+}
+
+/** Shows the typed amount as "PKR 15,000" under the field, so mistakes are easy to see. */
+function updateAmountHint() {
+  const value = Number($("f-amount").value);
+  $("f-amount-hint").textContent = value > 0 ? formatMoney(value) : "";
+}
+
+/** Fills the Head dropdown: active heads, expenses first (plus the edited entry's own head). */
 export function refreshHeadOptions() {
   const select = $("f-head");
   const keep = select.value;
@@ -51,10 +71,11 @@ export function resetEntryForm(keepDateAndFarm = false) {
   $("f-farm").value = keepDateAndFarm ? farm : "";
   $("f-paidby").value = CONFIG.defaultPaidBy;
   form.editingId = null;
-  $("expense-form-title").textContent = "Add Entry";
-  $("expense-save-btn").textContent = "Save";
+  $("expense-form-title").textContent = "Add Expense";
+  $("expense-save-btn").textContent = "Save Expense";
   setHidden($("expense-cancel-btn"), true);
-  showFormError("expense-error", "");
+  showFieldError("", "");
+  updateAmountHint();
   clearAttachment();
   refreshHeadOptions();
 }
@@ -72,9 +93,10 @@ export function startEditing(id) {
   $("f-paidby").value = entry.paidBy;
   $("f-note").value = entry.note || "";
   $("expense-form-title").textContent = "Edit Entry";
-  $("expense-save-btn").textContent = "Update";
+  $("expense-save-btn").textContent = "Update Entry";
   setHidden($("expense-cancel-btn"), false);
-  showFormError("expense-error", "");
+  showFieldError("", "");
+  updateAmountHint();
   clearAttachment();
   if (entry.hasAttachment) showSavedAttachment(entry);
   showPage("add");
@@ -85,7 +107,7 @@ export function startEditing(id) {
 function handleSubmit(e) {
   e.preventDefault();
   if (!isAdmin()) return;
-  const input = readInputs({ date: "f-date", farm: "f-farm", headId: "f-head", amount: "f-amount", paidBy: "f-paidby", note: "f-note" });
+  const input = readInputs(FIELD_IDS);
   const editing = editingEntry();
   if (form.editingId && !editing) {
     showToast("This entry was deleted on another device.", true);
@@ -93,18 +115,19 @@ function handleSubmit(e) {
     return;
   }
   const result = validateEntry(input, { heads: state.heads, allowedInactiveHeadId: editing ? editing.headId : null });
-  if (!result.ok) { showFormError("expense-error", result.error); return; }
-  showFormError("expense-error", "");
+  if (!result.ok) { showFieldError(result.field, result.error); return; }
+  showFieldError("", "");
+  const saved = `${headNameOf(result.value, state.headMap)} ${formatMoney(result.value.amount)} (${result.value.farm})`;
 
   if (editing) {
     const attachment = form.attachment ? { file: form.attachment } : { remove: form.attachmentRemoved };
     updateEntry(editing.id, result.value, attachment, currentActor()).catch(onWriteError("Updating entry " + editing.id));
-    showToast("Entry updated");
+    showToast("Updated: " + saved);
     resetEntryForm();
     showPage("list");
   } else {
     createEntry(result.value, form.attachment, currentActor()).catch(onWriteError("Saving new entry"));
-    showToast(navigator.onLine ? "Saved" : "Saved offline - will sync when online");
+    showToast(navigator.onLine ? "Saved: " + saved : "Saved offline - will sync when online");
     resetEntryForm(true);
     $("f-head").focus();
   }
@@ -202,6 +225,7 @@ function handleRemoveAttachment() {
 export function initEntryForm() {
   fillStaticSelects();
   $("expense-form").addEventListener("submit", handleSubmit);
+  $("f-amount").addEventListener("input", updateAmountHint);
   $("expense-cancel-btn").addEventListener("click", () => {
     resetEntryForm();
     showPage("list");

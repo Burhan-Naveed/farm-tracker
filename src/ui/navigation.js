@@ -1,7 +1,7 @@
 // =========================================================
 // Switching between top-level screens (loading, login, denied,
-// app) and between pages inside the app (Add, Entries, Reports,
-// Heads, Users). Pages register themselves, so this module does
+// app) and between pages inside the app (Dashboard, Add, Entries,
+// Reports, Heads, Users). Pages register themselves, so this module does
 // not need to know about them.
 // =========================================================
 
@@ -10,6 +10,10 @@ import { $, setHidden } from "./dom.js";
 
 const pages = new Map();     // page name -> { render() }
 let currentPage = null;
+
+/** Pages Staff may open (they only view figures); Admins may open every page. */
+const STAFF_PAGES = ["dashboard", "reports"];
+export const HOME_PAGE = "dashboard";
 
 /** Adds a page. page.render() is called when it is opened and when data changes. */
 export function registerPage(name, page) {
@@ -23,9 +27,9 @@ export function showView(name) {
   ["loading-view", "login-view", "denied-view", "app-view"].forEach((id) => setHidden($(id), id !== name + "-view"));
 }
 
-/** Opens a page inside the app. Staff can only open Reports. */
+/** Opens a page inside the app. Staff can only open the Dashboard and Reports. */
 export function showPage(name) {
-  const page = isAdmin() || name === "reports" ? name : "reports";
+  const page = pages.has(name) && (isAdmin() || STAFF_PAGES.includes(name)) ? name : HOME_PAGE;
   currentPage = page;
   document.querySelectorAll(".page").forEach((p) => setHidden(p, p.id !== "page-" + page));
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.page === page));

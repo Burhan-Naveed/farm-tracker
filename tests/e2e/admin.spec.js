@@ -1,4 +1,4 @@
-import { createLogin, createUser, expect, login, openTab, readAll, seedEntry, seedHeads, test } from "./support.js";
+import { asAdminDb, createLogin, createUser, expect, login, openTab, readAll, seedEntry, seedHeads, serverTime, test } from "./support.js";
 
 const headRow = (page, name) => page.locator("#heads-body tr", { has: page.getByText(name, { exact: true }) });
 
@@ -25,7 +25,11 @@ test.describe("heads page", () => {
     await page.locator("#h-name").fill("sales");
     await page.locator("#h-type").selectOption("Inflow");
     await page.locator("#head-save-btn").click();
-    await expect(page.locator("#head-error")).toHaveText("A head with this name already exists.");
+    await expect(page.locator("#head-error")).toHaveText('A head with this name already exists: "Sales".');
+    await page.locator("#h-name").fill("Misc Expenses");   // same as "Misc. Expenses" apart from the dot
+    await page.locator("#h-type").selectOption("Outflow");
+    await page.locator("#head-save-btn").click();
+    await expect(page.locator("#head-error")).toHaveText('A head with this name already exists: "Misc. Expenses".');
     await page.locator("#h-name").fill("New head");
     await page.locator("#h-type").selectOption("");
     await page.locator("#head-save-btn").click();
@@ -36,7 +40,8 @@ test.describe("heads page", () => {
   test("renaming a head updates its entries", async ({ page }) => {
     await seedEntry({ date: "2026-10-01", farm: "Fatehpur Farm", headId: "default-06", headName: "Transport", type: "Outflow", amount: 100 });
     await headRow(page, "Transport").locator("[data-head-edit]").click();
-    await expect(page.locator("#head-form-title")).toHaveText("Edit Head");
+    await expect(page.locator("#head-form-title")).toHaveText("Rename / Edit Head");
+    await expect(page.locator("#head-edit-hint")).toContainText("all 1 old entries");
     await page.locator("#h-name").fill("Transport & Freight");
     await page.locator("#head-save-btn").click();
     await expect(page.locator("#toast")).toHaveText("Head updated (1 entries updated)");
@@ -79,7 +84,7 @@ test.describe("users page", () => {
     const other = await browser.newContext({ serviceWorkers: "block" });
     const staffPage = await other.newPage();
     await login(staffPage, "new.staff@farm.test");
-    await expect(staffPage.locator("#page-reports")).toBeVisible();
+    await expect(staffPage.locator("#page-dashboard")).toBeVisible();
     await expect(staffPage.locator("#user-label")).toHaveText("New Staff (Staff)");
     await other.close();
   });
@@ -115,7 +120,7 @@ test.describe("users page", () => {
     const other = await browser.newContext({ serviceWorkers: "block" });
     const staffPage = await other.newPage();
     await login(staffPage, staff.email);
-    await expect(staffPage.locator("#page-reports")).toBeVisible();
+    await expect(staffPage.locator("#page-dashboard")).toBeVisible();
     await expect(staffPage.locator('#tabs button[data-page="add"]')).toBeHidden();
 
     await page.locator(`select[data-role-for="${staff.uid}"]`).selectOption("admin");
@@ -133,5 +138,59 @@ test.describe("users page", () => {
     await expect(staffPage.locator("#denied-view")).toBeVisible();
     await expect.poll(async () => (await readAll("auditLog")).map((a) => a.action).sort()).toEqual(["user-role", "user-status"]);
     await other.close();
+  });
+});
+
+test.describe("one-time head rename (Cash by BM -> Paid by Amjad Ali)", () => {
+  const addBmHead = () => asAdminDb((db) => db.doc("heads/bm-head").set({
+    name: "Cash by BM", type: "Inflow", active: true, isDefault: false, createdBy: "seed", createdAt: serverTime()
+  }));
+
+  test("renames the head after confirmation; ids, amounts and dates stay the same", async ({ page, admin }) => {
+    await seedHeads(admin.uid);
+    await addBmHead();
+    const id = await seedEntry({ date: "2026-06-10", farm: "Bhakkarpur Farm", headId: "bm-head", headName: "Cash by BM", type: "Inflow", amount: 25000 });
+    await login(page, admin.email);
+    await openTab(page, "heads");
+    const card = page.locator("#head-rename-card");
+    await expect(card).toContainText("Cash by BM");
+    await expect(card).toContainText("Paid by Amjad Ali");
+    await expect(card).toContainText("1 entries");
+
+    // Cancelling the confirmation changes nothing
+    page.removeAllListeners("dialog");
+    page.once("dialog", (d) => d.dismiss());
+    await card.locator("[data-rename]").click();
+    expect((await readAll("heads")).find((h) => h.id === "bm-head").name).toBe("Cash by BM");
+
+    page.once("dialog", (d) => d.accept());
+    await card.locator("[data-rename]").click();
+    await expect(card).toBeHidden();
+    await expect.poll(async () => (await readAll("heads")).find((h) => h.id === "bm-head").name).toBe("Paid by Amjad Ali");
+    await expect.poll(async () => (await readAll("expenses")).find((x) => x.id === id).headName).toBe("Paid by Amjad Ali");
+    const [entry] = await readAll("expenses");
+    expect(entry).toMatchObject({ id, headId: "bm-head", amount: 25000, date: "2026-06-10", farm: "Bhakkarpur Farm", type: "Inflow" });
+    expect((await readAll("heads")).filter((h) => /amjad ali/i.test(h.name))).toHaveLength(2);   // with "Cash by Owner (Amjad Ali)", no duplicate
+    await expect.poll(async () => (await readAll("auditLog")).map((a) => a.details).join()).toContain("Cash by BM (Inflow) -> Paid by Amjad Ali (Inflow)");
+  });
+
+  test("does not offer the rename when a head with the new name already exists", async ({ page, admin }) => {
+    await seedHeads(admin.uid);
+    await addBmHead();
+    await asAdminDb((db) => db.doc("heads/amjad").set({
+      name: "Paid by Amjad Ali", type: "Outflow", active: true, isDefault: false, createdBy: "seed", createdAt: serverTime()
+    }));
+    await login(page, admin.email);
+    await openTab(page, "heads");
+    await expect(page.locator("#head-rename-card")).toContainText("already exists");
+    await expect(page.locator("#head-rename-card [data-rename]")).toHaveCount(0);
+  });
+
+  test("shows nothing when there is no Cash by BM head", async ({ page, admin }) => {
+    await seedHeads(admin.uid);
+    await login(page, admin.email);
+    await openTab(page, "heads");
+    await expect(page.locator("#heads-body tr")).toHaveCount(12);
+    await expect(page.locator("#head-rename-card")).toBeHidden();
   });
 });

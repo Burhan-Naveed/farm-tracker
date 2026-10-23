@@ -27,19 +27,20 @@ test.describe("login and access", () => {
   test("Admin logs in and sees every page", async ({ page, admin }) => {
     await login(page, admin.email);
     await expect(page.locator("#app-view")).toBeVisible();
-    await expect(page.locator("#page-add")).toBeVisible();
-    for (const name of ["add", "list", "reports", "heads", "users"]) {
+    await expect(page.locator("#page-dashboard")).toBeVisible();   // the Dashboard is the home page
+    for (const name of ["dashboard", "add", "list", "reports", "heads", "users"]) {
       await expect(page.locator(`#tabs button[data-page="${name}"]`)).toBeVisible();
     }
   });
 
-  test("Staff sees only Reports, without export buttons", async ({ page, admin }) => {
+  test("Staff sees only the Dashboard and Reports, without export buttons", async ({ page, admin }) => {
     const staff = await createUser({ email: "staff@farm.test", name: "Staff User", role: "staff" });
     await login(page, staff.email);
-    await expect(page.locator("#page-reports")).toBeVisible();
+    await expect(page.locator("#page-dashboard")).toBeVisible();
     for (const name of ["add", "list", "heads", "users"]) {
       await expect(page.locator(`#tabs button[data-page="${name}"]`)).toBeHidden();
     }
+    await openTab(page, "reports");
     await expect(page.locator("#export-report-btn")).toBeHidden();
     await expect(page.locator("#print-report-btn")).toBeHidden();
   });
@@ -73,6 +74,7 @@ test.describe("login and access", () => {
   test("logout warns when saved entries have not reached the server", async ({ page, admin, context }) => {
     await seedHeads(admin.uid);
     await login(page, admin.email);
+    await openTab(page, "add");
     await expect(page.locator("#f-head option")).toHaveCount(13);
     await context.setOffline(true);
     await page.locator("#f-farm").selectOption("Fatehpur Farm");

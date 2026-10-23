@@ -1,11 +1,11 @@
 // =========================================================
 // Pieces of HTML used on more than one screen: summary cards,
-// head dropdown groups, farm options and table cells.
+// stat tiles, bar lists, head / farm / Paid By options and cells.
 // =========================================================
 
-import { CONFIG, TYPES } from "../config.js";
+import { CONFIG, TYPE_LABELS } from "../config.js";
 import { sortedHeads } from "../domain/heads.js";
-import { formatMoney } from "../lib/format.js";
+import { formatMoney, formatNumber } from "../lib/format.js";
 import { escapeHtml } from "../lib/html.js";
 
 /** CSS class for an Inflow / Outflow value. */
@@ -26,24 +26,46 @@ export function cardHtml(title, lines, { extraClass = "", emphasizeLast = true }
     </div>`;
 }
 
-/** The standard card: Total Inflow, Total Outflow and Net. */
-export function moneySummaryCardHtml(title, inflow, outflow, net, extraClass = "") {
-  return cardHtml(title, [
-    { label: "Total Inflow", value: formatMoney(inflow), className: "type-inflow" },
-    { label: "Total Outflow", value: formatMoney(outflow), className: "type-outflow" },
-    { label: "Net", value: formatMoney(net), className: net < 0 ? "type-outflow" : "type-inflow" }
-  ], { extraClass });
+/**
+ * A stat tile: a label, one big value and a small line under it.
+ * tile: { label, value (text), sub? (text), tone?: "expense" | "good" | "", primary?: bool }
+ */
+export function statTileHtml({ label, value, sub = "", tone = "", primary = false }) {
+  return `
+    <div class="card stat-tile${primary ? " primary" : ""}">
+      <span class="stat-label">${escapeHtml(label)}</span>
+      <b class="stat-value${tone ? " tone-" + escapeHtml(tone) : ""}">${escapeHtml(value)}</b>
+      ${sub ? `<span class="stat-sub">${escapeHtml(sub)}</span>` : ""}
+    </div>`;
 }
 
 /**
- * <optgroup>s of heads, one per type, in the given order.
+ * A list of rows, each with a bar showing its size compared with the biggest row.
+ * rows: [{ name, total, share, color? }]
+ */
+export function barListHtml(rows, emptyText) {
+  if (!rows.length) return `<p class="empty-state">${escapeHtml(emptyText)}</p>`;
+  const max = Math.max(...rows.map((r) => r.total), 1);
+  const colorStyle = (r) => (r.color ? `background:${escapeHtml(r.color)}` : "");
+  return `<ul class="bar-list">${rows.map((r) => `
+    <li>
+      <div class="bar-row">
+        <span class="bar-name">${r.color ? `<i class="dot" style="${colorStyle(r)}"></i>` : ""}${escapeHtml(r.name)}</span>
+        <span class="bar-value"><b>${escapeHtml(formatMoney(r.total))}</b> <span class="muted">${escapeHtml(String(r.share))}%</span></span>
+      </div>
+      <div class="bar-track"><span style="width:${Math.max(1, Math.round((r.total / max) * 100))}%;${colorStyle(r)}"></span></div>
+    </li>`).join("")}</ul>`;
+}
+
+/**
+ * <optgroup>s of heads: expense heads first, then cash received.
  * Inactive heads are marked "(inactive)".
  */
-export function headGroupsHtml(heads, typeOrder = TYPES) {
+export function headGroupsHtml(heads, typeOrder = ["Outflow", "Inflow"]) {
   return typeOrder.map((type) => {
     const group = sortedHeads(heads.filter((h) => h.type === type));
     if (!group.length) return "";
-    return `<optgroup label="${escapeHtml(type)}">` +
+    return `<optgroup label="${escapeHtml(TYPE_LABELS[type])}">` +
       group.map((h) => `<option value="${escapeHtml(h.id)}">${escapeHtml(h.name)}${h.active ? "" : " (inactive)"}</option>`).join("") +
       `</optgroup>`;
   }).join("");
@@ -53,6 +75,19 @@ export function headGroupsHtml(heads, typeOrder = TYPES) {
 export function farmOptions(allLabel) {
   const farms = CONFIG.farms.map((f) => ({ value: f, label: f }));
   return allLabel ? [{ value: "", label: allLabel }, ...farms] : farms;
+}
+
+/** Paid By options for a <select> (saved value, shown label). With allLabel, an "anyone" option comes first. */
+export function paidByOptions(allLabel) {
+  const options = CONFIG.paidBy.map((p) => ({ value: p.value, label: p.label }));
+  return allLabel ? [{ value: "", label: allLabel }, ...options] : options;
+}
+
+/** An amount in a list: red for an expense, green with "+" for cash received. */
+export function amountHtml(amount, type) {
+  return type === "Inflow"
+    ? `<span class="type-inflow">+${escapeHtml(formatNumber(amount))}</span>`
+    : `<span class="type-outflow">${escapeHtml(formatNumber(amount))}</span>`;
 }
 
 /** "📎 Slip" button for an entry with an attachment, or a dash. */

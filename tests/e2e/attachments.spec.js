@@ -14,6 +14,7 @@ test.describe("attachments", () => {
   test.beforeEach(async ({ page, admin }) => {
     await seedHeads(admin.uid);
     await login(page, admin.email);
+    await openTab(page, "add");
     await expect(page.locator("#f-head option")).toHaveCount(13);
   });
 

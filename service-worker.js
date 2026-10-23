@@ -7,7 +7,7 @@
 // download the new version.
 // =========================================================
 
-const CACHE_VERSION = "farm-tracker-v10";
+const CACHE_VERSION = "farm-tracker-v11";
 
 // Files that make up the app (relative paths, so it works on GitHub Pages).
 // Every file in src/ must be listed here (a unit test checks this).
@@ -28,6 +28,7 @@ const APP_SHELL = [
   "./src/domain/entries.js",
   "./src/domain/heads.js",
   "./src/domain/ledger.js",
+  "./src/domain/periods.js",
   "./src/domain/reports.js",
   "./src/domain/users.js",
   "./src/lib/csv.js",
@@ -41,13 +42,16 @@ const APP_SHELL = [
   "./src/ui/backup-panel.js",
   "./src/ui/chart.js",
   "./src/ui/components.js",
+  "./src/ui/dashboard-page.js",
   "./src/ui/dom.js",
   "./src/ui/entries-page.js",
   "./src/ui/entry-form.js",
   "./src/ui/feedback.js",
   "./src/ui/heads-page.js",
   "./src/ui/navigation.js",
+  "./src/ui/period-filter.js",
   "./src/ui/pwa.js",
+  "./src/ui/report-table.js",
   "./src/ui/reports-page.js",
   "./src/ui/session.js",
   "./src/ui/users-page.js",

@@ -22,8 +22,8 @@
     form-action 'self'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Farm Tracker</title>
-  <meta name="description" content="Daily income and expense tracker for 3 farms">
-  <meta name="theme-color" content="#f5f4ff">
+  <meta name="description" content="Expense tracker for 3 farms">
+  <meta name="theme-color" content="#f6f6f4">
 
   <!-- PWA: manifest and icons -->
   <link rel="manifest" href="./manifest.json">
@@ -40,7 +40,7 @@
 
   <link rel="stylesheet" href="./style.css">
 
-  <!-- Chart.js (for the bar chart on the Reports page) -->
+  <!-- Chart.js (for the charts on the Dashboard and Reports pages) -->
   <!-- integrity: the browser refuses the file if the CDN copy was ever changed -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer
           integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
@@ -97,8 +97,12 @@
       </div>
     </header>
 
-    <!-- Navigation tabs (hidden per role in app.js) -->
+    <!-- Navigation tabs (Admin-only tabs are hidden for Staff in main.js) -->
     <nav class="tabs" id="tabs">
+      <button data-page="dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="8" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="14.5" width="7" height="6" rx="1.5"/></svg>
+        <span>Dashboard</span>
+      </button>
       <button data-page="add" class="admin-only">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
         <span>Add Entry</span>
@@ -139,28 +143,91 @@
     </div>
 
     <main>
+      <!-- ---------- DASHBOARD ---------- -->
+      <section id="page-dashboard" class="page hidden">
+        <div class="page-head">
+          <div>
+            <h2>Expense Dashboard</h2>
+            <p class="muted small" id="dash-range-label"></p>
+          </div>
+          <div class="chips" id="dash-period" role="group" aria-label="Period">
+            <button type="button" data-period="this-month">This Month</button>
+            <button type="button" data-period="last-month">Last Month</button>
+            <button type="button" data-period="this-year">This Year</button>
+            <button type="button" data-period="all">All Dates</button>
+            <button type="button" data-period="custom">Custom</button>
+          </div>
+        </div>
+        <div class="card date-pair hidden" id="dash-custom">
+          <div><label for="dash-from">From</label><input type="date" id="dash-from"></div>
+          <div><label for="dash-to">To</label><input type="date" id="dash-to"></div>
+        </div>
+
+        <div id="dash-kpis" class="stat-grid"></div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Farm-wise expenses</h3>
+            <div id="dash-farms"></div>
+          </div>
+          <div class="card">
+            <h3>Farm comparison</h3>
+            <div class="chart-box short"><canvas id="dash-farm-chart" aria-label="Expenses per farm"></canvas></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Monthly expense trend</h3>
+          <p class="muted small" id="dash-trend-note"></p>
+          <div class="chart-box"><canvas id="dash-trend-chart" aria-label="Monthly expenses per farm"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h3>Head-wise expenses</h3>
+          <div id="dash-heads"></div>
+        </div>
+
+        <!-- Secondary: the cash book figures (cash received and balance) -->
+        <details class="card cash-details">
+          <summary>Cash received and balance <span class="muted small">(optional)</span></summary>
+          <div id="dash-cash"></div>
+        </details>
+      </section>
+
       <!-- ---------- ADD / EDIT ENTRY ---------- -->
       <section id="page-add" class="page hidden">
         <form id="expense-form" class="card form-card" novalidate>
-          <h2 id="expense-form-title">Add Entry</h2>
+          <h2 id="expense-form-title">Add Expense</h2>
+          <p class="muted small">Fields marked <span class="req">*</span> are required.</p>
 
-          <label for="f-date">Date</label>
-          <input type="date" id="f-date" required>
+          <div class="form-grid">
+            <div>
+              <label for="f-date">Expense Date <span class="req">*</span></label>
+              <input type="date" id="f-date" required>
+            </div>
+            <div>
+              <label for="f-farm">Farm <span class="req">*</span></label>
+              <select id="f-farm" required></select>
+            </div>
+          </div>
 
-          <label for="f-farm">Farm</label>
-          <select id="f-farm" required></select>
-
-          <label for="f-head">Head</label>
+          <label for="f-head">Expense Head <span class="req">*</span></label>
           <select id="f-head" required></select>
 
-          <label for="f-amount">Amount (PKR)</label>
-          <input type="number" id="f-amount" inputmode="numeric" step="1" min="1" placeholder="0" required>
+          <div class="form-grid">
+            <div>
+              <label for="f-amount">Amount (PKR) <span class="req">*</span></label>
+              <input type="number" id="f-amount" inputmode="numeric" step="1" min="1" placeholder="e.g. 15000" required aria-describedby="f-amount-hint">
+              <p id="f-amount-hint" class="hint" aria-live="polite"></p>
+            </div>
+            <div>
+              <label for="f-paidby">Paid By <span class="req">*</span></label>
+              <select id="f-paidby" required></select>
+            </div>
+          </div>
 
-          <label for="f-paidby">Paid By</label>
-          <select id="f-paidby" required></select>
-
-          <label for="f-note">Note <span class="muted">(optional)</span></label>
-          <input type="text" id="f-note" maxlength="200" placeholder="e.g. Tractor diesel">
+          <label for="f-note">Description / Notes <span class="muted">(optional)</span></label>
+          <input type="text" id="f-note" maxlength="200" placeholder="e.g. Diesel for tractor, 50 litres">
 
           <label>Attachment <span class="muted">(optional: slip, online receipt or bill)</span></label>
           <input type="file" id="f-attach" accept="image/*,application/pdf" class="hidden">
@@ -179,9 +246,9 @@
             <button type="button" class="btn btn-danger btn-small" id="attach-remove-btn">Remove</button>
           </div>
 
-          <p id="expense-error" class="msg error hidden"></p>
+          <p id="expense-error" class="msg error hidden" role="alert"></p>
           <div class="form-buttons">
-            <button type="submit" class="btn btn-primary btn-big" id="expense-save-btn">Save</button>
+            <button type="submit" class="btn btn-primary btn-big" id="expense-save-btn">Save Expense</button>
             <button type="button" class="btn btn-light btn-big hidden" id="expense-cancel-btn">Cancel</button>
           </div>
         </form>
@@ -191,147 +258,113 @@
       <section id="page-list" class="page hidden">
         <div class="card">
           <div class="filters">
+            <div class="wide"><label for="flt-search">Search description</label><input type="search" id="flt-search" placeholder="Search description or head…"></div>
             <div><label for="flt-farm">Farm</label><select id="flt-farm"></select></div>
-            <div><label for="flt-head">Head</label><select id="flt-head"></select></div>
-            <div><label for="flt-type">Type</label>
+            <div><label for="flt-head">Expense head</label><select id="flt-head"></select></div>
+            <div><label for="flt-paidby">Paid by</label><select id="flt-paidby"></select></div>
+            <div><label for="flt-type">Show</label>
               <select id="flt-type">
-                <option value="">All</option>
-                <option value="Inflow">Inflow</option>
-                <option value="Outflow">Outflow</option>
+                <option value="">All entries</option>
+                <option value="Outflow">Expenses only</option>
+                <option value="Inflow">Cash received only</option>
               </select>
             </div>
             <div><label for="flt-from">From</label><input type="date" id="flt-from"></div>
             <div><label for="flt-to">To</label><input type="date" id="flt-to"></div>
-            <div><label for="flt-search">Search note</label><input type="search" id="flt-search" placeholder="Search…"></div>
+            <div><label for="flt-sort">Sort by</label>
+              <select id="flt-sort">
+                <option value="date-desc">Date: newest first</option>
+                <option value="date-asc">Date: oldest first</option>
+                <option value="amount-desc">Amount: highest first</option>
+                <option value="amount-asc">Amount: lowest first</option>
+              </select>
+            </div>
           </div>
           <div class="list-toolbar">
-            <span id="list-summary" class="muted"></span>
+            <label class="check"><input type="checkbox" id="flt-cashbook"> Show cash book (running balance)</label>
             <div>
               <button class="btn btn-light btn-small" id="flt-clear">Clear filters</button>
               <button class="btn btn-primary btn-small" id="export-list-btn">Export CSV</button>
             </div>
           </div>
         </div>
+        <div id="list-totals" class="stat-grid"></div>
         <div class="card table-wrap">
-          <!-- Ledger: one row per entry, newest first, with a running balance -->
-          <table class="data-table ledger-table">
-            <thead>
-              <tr><th>Date</th><th>Farm</th><th>Head / Note</th><th>Paid By</th><th class="num">Inflow</th><th class="num">Outflow</th><th class="num">Balance</th><th>Actions</th></tr>
-            </thead>
+          <p id="list-summary" class="muted small list-summary"></p>
+          <table class="data-table" id="list-table">
+            <thead id="list-head"></thead>
             <tbody id="list-body"></tbody>
             <tfoot id="list-foot"></tfoot>
           </table>
-          <p id="list-empty" class="muted empty hidden">No entries found.</p>
+          <div id="list-empty" class="empty-state hidden">
+            <p>No entries match these filters.</p>
+            <button type="button" class="btn btn-light btn-small" id="list-empty-clear">Clear filters</button>
+          </div>
+          <div class="more-row"><button type="button" class="btn btn-light hidden" id="list-more">Show more</button></div>
         </div>
       </section>
 
       <!-- ---------- REPORTS ---------- -->
       <section id="page-reports" class="page hidden">
         <div class="card report-toolbar-card">
-          <!-- Report type: all farms together, or one farm with its transactions -->
-          <div class="segmented" id="rpt-view" role="tablist">
-            <button type="button" data-view="total" class="active" role="tab">Total Report</button>
-            <button type="button" data-view="farm" role="tab">Farm-wise</button>
+          <div class="segmented" id="rpt-view" role="tablist" aria-label="Report">
+            <button type="button" data-view="farm" class="active" role="tab">Farm-wise</button>
             <button type="button" data-view="head" role="tab">Head-wise</button>
+            <button type="button" data-view="monthly" role="tab">Monthly</button>
+            <button type="button" data-view="details" role="tab">Expense Details</button>
+            <button type="button" data-view="payer" role="tab">Paid By</button>
+            <button type="button" data-view="cash" role="tab">Cash Book</button>
           </div>
-          <div class="report-toolbar">
-            <div class="report-filters">
-              <!-- data-views = the report types that show this filter -->
-              <div data-views="farm">
-                <label for="rpt-farm">Farm</label>
-                <select id="rpt-farm"></select>
-              </div>
-              <div data-views="head" class="wide">
-                <label for="rpt-head">Head</label>
-                <select id="rpt-head"></select>
-              </div>
-              <div data-views="head" class="wide">
-                <label for="rpt-hfarm">Farm</label>
-                <select id="rpt-hfarm"></select>
-              </div>
-              <div data-views="total farm head">
-                <label for="rpt-from">From</label>
-                <input type="date" id="rpt-from">
-              </div>
-              <div data-views="total farm head">
-                <label for="rpt-to">To</label>
-                <input type="date" id="rpt-to">
-              </div>
+          <div class="report-filters">
+            <!-- data-filter = the filter's name; each report shows (and uses) only its own filters -->
+            <div><label for="rpt-period">Period</label><select id="rpt-period"></select></div>
+            <div><label for="rpt-from">From</label><input type="date" id="rpt-from"></div>
+            <div><label for="rpt-to">To</label><input type="date" id="rpt-to"></div>
+            <div data-filter="farm"><label for="rpt-farm">Farm</label><select id="rpt-farm"></select></div>
+            <div data-filter="headId" class="wide"><label for="rpt-head">Expense head</label><select id="rpt-head"></select></div>
+            <div data-filter="paidBy"><label for="rpt-paidby">Paid by</label><select id="rpt-paidby"></select></div>
+            <div data-filter="search" class="wide"><label for="rpt-search">Search description</label><input type="search" id="rpt-search" placeholder="Search…"></div>
+            <div data-filter="compare"><label for="rpt-compare">Compare</label>
+              <select id="rpt-compare">
+                <option value="farm">Farms</option>
+                <option value="head">Expense heads</option>
+              </select>
             </div>
-            <div class="admin-only report-export">
+            <div data-filter="sort"><label for="rpt-sort">Sort by</label>
+              <select id="rpt-sort">
+                <option value="date-desc">Date: newest first</option>
+                <option value="date-asc">Date: oldest first</option>
+                <option value="amount-desc">Amount: highest first</option>
+                <option value="amount-asc">Amount: lowest first</option>
+              </select>
+            </div>
+          </div>
+          <div class="report-actions">
+            <button class="btn btn-light btn-small" id="rpt-clear">Clear filters</button>
+            <span class="admin-only report-export">
               <button class="btn btn-primary btn-small" id="export-report-btn">Export CSV</button>
               <button class="btn btn-light btn-small" id="print-report-btn">Print / PDF</button>
-            </div>
+            </span>
           </div>
         </div>
 
-        <h2 class="print-title" id="report-title"></h2>
-
-        <!-- ===== Total Report (all farms) ===== -->
-        <div id="report-total">
-          <div id="summary-cards" class="summary-cards"></div>
-
-          <div class="card table-wrap">
-            <h3>Farm-wise report</h3>
-            <table class="data-table report-table" id="report-table"></table>
-          </div>
-
-          <div class="card chart-card no-print">
-            <h3>Inflow and Outflow per farm</h3>
-            <div class="chart-box"><canvas id="report-chart"></canvas></div>
-          </div>
+        <div class="report-head">
+          <h2 id="report-title"></h2>
+          <p id="report-meta" class="muted small"></p>
         </div>
-
-        <!-- ===== Farm-wise (one farm, with its transactions) ===== -->
-        <div id="report-farm" class="hidden">
-          <div id="farm-summary" class="summary-cards"></div>
-
-          <div class="card table-wrap">
-            <h3>Head-wise totals</h3>
-            <table class="data-table report-table" id="farm-head-table"></table>
-          </div>
-
-          <div class="card table-wrap">
-            <h3 id="farm-tx-title">Transactions</h3>
-            <table class="data-table responsive-table">
-              <thead>
-                <tr><th>Date</th><th>Head</th><th>Type</th><th class="num">Amount</th><th>Paid By</th><th>Note</th><th class="no-print">Slip</th></tr>
-              </thead>
-              <tbody id="farm-tx-body"></tbody>
-            </table>
-            <p id="farm-tx-empty" class="muted empty hidden">No transactions for this farm in these dates.</p>
-          </div>
+        <p id="report-note" class="note hidden"></p>
+        <div id="report-kpis" class="stat-grid"></div>
+        <div id="report-chart-card" class="card chart-card no-print hidden">
+          <h3 id="report-chart-title"></h3>
+          <div class="chart-box"><canvas id="report-chart"></canvas></div>
         </div>
-
-        <!-- ===== Head-wise (one head, all farms or one farm, any date range) ===== -->
-        <div id="report-head" class="hidden">
-          <div id="head-summary" class="summary-cards"></div>
-
-          <div class="card table-wrap" id="head-farm-card">
-            <h3>Farm-wise breakdown</h3>
-            <table class="data-table report-table" id="head-farm-table"></table>
-          </div>
-
-          <div class="card table-wrap">
-            <h3>Month-wise breakdown</h3>
-            <table class="data-table report-table" id="head-month-table"></table>
-          </div>
-
-          <div class="card table-wrap">
-            <h3 id="head-tx-title">Transactions</h3>
-            <table class="data-table responsive-table">
-              <thead>
-                <tr><th>Date</th><th>Farm</th><th class="num">Amount</th><th>Paid By</th><th>Note</th><th class="no-print">Slip</th></tr>
-              </thead>
-              <tbody id="head-tx-body"></tbody>
-            </table>
-            <p id="head-tx-empty" class="muted empty hidden">No transactions for this head in this date range.</p>
-          </div>
-        </div>
+        <div id="report-tables"></div>
       </section>
 
       <!-- ---------- HEADS (Admin) ---------- -->
       <section id="page-heads" class="page hidden">
+        <!-- One-time head name updates (e.g. "Cash by BM" -> "Paid by Amjad Ali"); hidden when there are none -->
+        <div id="head-rename-card" class="card form-card notice-card hidden"></div>
         <form id="head-form" class="card form-card" novalidate>
           <h2 id="head-form-title">Add Head</h2>
           <label for="h-name">Head name</label>
@@ -339,9 +372,10 @@
           <label for="h-type">Type</label>
           <select id="h-type" required>
             <option value="">Select type</option>
-            <option value="Inflow">Inflow</option>
-            <option value="Outflow">Outflow</option>
+            <option value="Outflow">Expense (Outflow)</option>
+            <option value="Inflow">Cash received (Inflow)</option>
           </select>
+          <p id="head-edit-hint" class="note hidden"></p>
           <p id="head-error" class="msg error hidden"></p>
           <div class="form-buttons">
             <button type="submit" class="btn btn-primary" id="head-save-btn">Add Head</button>
