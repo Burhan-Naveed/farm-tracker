@@ -547,26 +547,13 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
   }
 }
 
-/* ---------- "Designed by" credit ---------- */
-/* Shown in the bottom right corner, in bold */
-.credit {
-  position: relative;
-  z-index: 1;
-  margin: 18px 0 0;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--label);
-  text-align: right;
-  letter-spacing: 0.01em;
-}
-.credit b {
-  color: var(--accent);
-  font-weight: 700;
-}
-.app-credit { margin: 28px 0 4px; }
-/* Login and Access denied screens: pinned to the bottom right corner */
-.center-view > .credit { position: absolute; right: 16px; bottom: calc(12px + env(safe-area-inset-bottom)); margin: 0; }
-@media print { .app-credit { display: none; } }
+/* ---------- "Designed by Burhan Naveed" under the app name (header, loading and login) ---------- */
+.brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.brand-credit { font-size: 0.72rem; font-weight: 700; color: var(--accent); letter-spacing: 0.01em; margin: 0; }
+.splash-name { font-size: 1.5rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+#loading-view .brand-credit { font-size: 0.85rem; margin-bottom: 14px; }
+.login-card .brand-credit { font-size: 0.85rem; margin: 2px 0 10px; }
+@media print { .brand-credit { display: none; } }
 
 /* ---------- Attachment (slip / bill) in the entry form ---------- */
 .attach-pick {

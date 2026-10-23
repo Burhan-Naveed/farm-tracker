@@ -49,6 +49,9 @@
 
   <!-- Loading screen: shown until Firebase tells us if the user is logged in -->
   <div id="loading-view" class="center-view">
+    <img src="./icons/icon-192.png" alt="" class="login-logo">
+    <div class="splash-name">Farm Tracker</div>
+    <p class="brand-credit">Designed by Burhan Naveed</p>
     <div class="spinner"></div>
     <p>Loading…</p>
   </div>
@@ -58,6 +61,7 @@
     <form id="login-form" class="card login-card" novalidate>
       <img src="./icons/icon-192.png" alt="" class="login-logo">
       <h1>Farm Tracker</h1>
+      <p class="brand-credit">Designed by Burhan Naveed</p>
       <p class="muted">Welcome back! Sign in to continue</p>
 
       <label for="login-email">Email</label>
@@ -70,7 +74,6 @@
       <button type="submit" class="btn btn-primary btn-block" id="login-btn">Sign in</button>
       <button type="button" class="btn-link" id="forgot-btn">Forgot password?</button>
     </form>
-    <p class="credit">Designed by <b>Burhan Naveed</b></p>
   </div>
 
   <!-- ===================== ACCESS DENIED ===================== -->
@@ -87,7 +90,10 @@
     <header class="app-header">
       <div class="brand">
         <img src="./icons/icon-192.png" alt="">
-        <span>Farm Tracker</span>
+        <span class="brand-text">
+          <span>Farm Tracker</span>
+          <span class="brand-credit">Designed by Burhan Naveed</span>
+        </span>
       </div>
       <div class="header-actions">
         <button id="install-btn" class="btn btn-light btn-small hidden">Install<span class="long-text">&nbsp;App</span></button>
@@ -454,7 +460,6 @@
           </div>
         </div>
       </section>
-      <footer class="credit app-credit">Designed by <b>Burhan Naveed</b></footer>
     </main>
   </div>
 
