@@ -116,7 +116,7 @@ export async function readDownload(download) {
 
 /**
  * Test with a clean database and a logged-in-ready Admin.
- * Fails the test on any uncaught page error.
+ * Fails the test on any uncaught page error or Content-Security-Policy violation.
  */
 export const test = base.extend({
   admin: async ({}, use) => {
@@ -126,9 +126,12 @@ export const test = base.extend({
   page: async ({ page }, use) => {
     const errors = [];
     page.on("pageerror", (err) => errors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error" && /Content Security Policy|integrity/i.test(msg.text())) errors.push(msg.text());
+    });
     page.on("dialog", (dialog) => dialog.accept());
     await use(page);
-    expect(errors, "uncaught errors in the page").toEqual([]);
+    expect(errors, "uncaught errors or blocked resources in the page").toEqual([]);
   }
 });
 

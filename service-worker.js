@@ -7,7 +7,7 @@
 // download the new version.
 // =========================================================
 
-const CACHE_VERSION = "farm-tracker-v6";
+const CACHE_VERSION = "farm-tracker-v7";
 
 // Files that make up the app (relative paths, so it works on GitHub Pages).
 // Every file in src/ must be listed here (a unit test checks this).

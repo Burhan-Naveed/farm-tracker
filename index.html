@@ -3,6 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Security: only load code and data from the app itself, Firebase, Google Fonts and cdnjs.
+       Blocks injected scripts even if some text were ever shown unescaped.
+       127.0.0.1 is only used by the local test emulators. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com;
+    style-src 'self' https://fonts.googleapis.com;
+    font-src https://fonts.gstatic.com;
+    img-src 'self' data: blob: https://www.google.com;
+    connect-src 'self' https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com https://cdnjs.cloudflare.com http://127.0.0.1:9099 http://127.0.0.1:8080;
+    frame-src https://farm-transaction-tracker.firebaseapp.com;
+    worker-src 'self';
+    manifest-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Farm Tracker</title>
   <meta name="description" content="Daily income and expense tracker for 3 farms">
   <meta name="theme-color" content="#f5f4ff">
@@ -23,7 +40,9 @@
   <link rel="stylesheet" href="./style.css">
 
   <!-- Chart.js (for the bar chart on the Reports page) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+  <!-- integrity: the browser refuses the file if the CDN copy was ever changed -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer
+          integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
 </head>
 <body>
 

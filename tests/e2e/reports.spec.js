@@ -32,6 +32,14 @@ test.describe("reports", () => {
     await expect(page.locator("#report-table .net-row")).toHaveText(/Net \(Inflow - Outflow\)\s*38,000\s*-8,000\s*0\s*30,000/);
   });
 
+  test("the chart library loads (passes its integrity check) and draws the chart", async ({ page, admin }) => {
+    await seedMonth(admin);
+    await login(page, admin.email);
+    await openReports(page);
+    await expect.poll(() => page.evaluate(() => typeof window.Chart)).toBe("function");
+    await expect.poll(() => page.evaluate(() => !!window.Chart.getChart(document.getElementById("report-chart")))).toBe(true);
+  });
+
   test("Total Report exports CSV", async ({ page, admin }) => {
     await seedMonth(admin);
     await login(page, admin.email);
