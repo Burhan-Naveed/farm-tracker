@@ -124,6 +124,7 @@ test.describe("users page", () => {
     await page.locator(`[data-status-for="${staff.uid}"]`).click();
     await expect(staffPage.locator("#app-view")).toBeHidden();
     await expect(staffPage.locator("#denied-view")).toBeVisible();
+    await expect(staffPage.locator("#denied-msg")).toHaveText("Your account has been disabled. Please contact the Admin.");
     // The offline copy is deleted, so the data cannot be opened offline either
     await expect.poll(() => staffPage.evaluate(async () =>
       (await indexedDB.databases()).filter((d) => d.name.startsWith("firestore/") && d.name.includes("main")).length

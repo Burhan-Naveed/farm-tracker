@@ -94,6 +94,7 @@ test.describe("login and access", () => {
     const user = await createUser({ email: "old@farm.test", name: "Old", role: "staff", status: "disabled" });
     await login(page, user.email);
     await expect(page.locator("#denied-view")).toBeVisible();
+    await expect(page.locator("#denied-msg")).toHaveText("Your account has been disabled. Please contact the Admin.");
     await expect(page.locator("#app-view")).toBeHidden();
   });
 

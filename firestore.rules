@@ -1,45 +1,201 @@
 rules_version = '2';
+
+// =========================================================
+// Farm Tracker security rules. These are the real protection:
+// the app's own checks can be bypassed, these cannot.
+//
+// IMPORTANT: the farm list, Paid By options and limits below must
+// match src/config.js (a unit test fails if they differ).
+// Deploy with: npm run deploy:rules
+// =========================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------- Who is asking ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
     // The logged-in user's record from the "users" collection
-    function userDoc() {
+    function me() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     // Logged in AND has an active record in "users" (Auth alone is not enough)
     function isActive() {
-      return request.auth != null
+      return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && userDoc().status == 'active';
+        && me().status == 'active';
     }
     function isAdmin() {
-      return isActive() && userDoc().role == 'admin';
+      return isActive() && me().role == 'admin';
+    }
+
+    // ---------- Allowed values (keep in sync with src/config.js) ----------
+
+    function farms()         { return ['Fatehpur Farm', 'Bhakkarpur Farm', 'Rehmanbad Farm']; }
+    function paidByOptions() { return ['BM', 'Manager', 'Other']; }
+    function maxAmount()     { return 1000000000; }
+    function noteMax()       { return 200; }
+    function headNameMax()   { return 50; }
+    function userNameMax()   { return 60; }
+    function fileNameMax()   { return 200; }
+    function auditDetailsMax() { return 500; }
+    function attachmentMaxChars() { return 900000; }
+
+    // ---------- Field helpers ----------
+
+    function isText(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+    function isFilledText(value, maxLength) {
+      return isText(value, maxLength) && value.trim().size() > 0;
+    }
+    function isType(value) {
+      return value in ['Inflow', 'Outflow'];
+    }
+    function isDate(value) {
+      return value is string && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+    }
+    // A timestamp field set with serverTimestamp() in this write
+    function isNow(value) {
+      return value == request.time;
+    }
+    // On update: the field is either unchanged or set to the server time now
+    function unchangedOrNow(field) {
+      return request.resource.data.get(field, null) == resource.data.get(field, null)
+        || isNow(request.resource.data[field]);
+    }
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ---------- users (document ID = the user's Auth UID) ----------
+
+    function isValidUser(data) {
+      return data.keys().hasOnly(['name', 'email', 'role', 'status', 'createdAt'])
+        && data.keys().hasAll(['name', 'email', 'role', 'status'])
+        && isFilledText(data.name, userNameMax())
+        && data.email is string && data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
+        && data.role in ['admin', 'staff']
+        && data.status in ['active', 'disabled'];
     }
 
     match /users/{uid} {
-      allow read: if isActive();
-      allow write: if isAdmin();
+      // Everyone can read their own record (to learn their role or that they are disabled);
+      // only Admins can see other users' details.
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        && isValidUser(request.resource.data)
+        && request.resource.data.status == 'active'
+        && isNow(request.resource.data.createdAt);
+      // Admins change role and status of OTHER users only, so nobody can lock themselves out
+      allow update: if isAdmin()
+        && request.auth.uid != uid
+        && changedKeys().hasOnly(['role', 'status'])
+        && isValidUser(request.resource.data);
+      allow delete: if false;   // disable a user instead, so history stays readable
     }
 
-    match /expenses/{expenseId} {
-      allow read: if isActive();
-      allow create, update, delete: if isAdmin();
+    // ---------- heads ----------
+
+    function isValidHead(data) {
+      return data.keys().hasOnly(['name', 'type', 'active', 'isDefault', 'createdBy', 'createdAt'])
+        && data.keys().hasAll(['name', 'type', 'active'])
+        && isFilledText(data.name, headNameMax())
+        && isType(data.type)
+        && data.active is bool
+        && data.get('isDefault', false) is bool;
     }
 
     match /heads/{headId} {
       allow read: if isActive();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin()
+        && isValidHead(request.resource.data)
+        && request.resource.data.active == true
+        && request.resource.data.createdBy == request.auth.uid
+        && isNow(request.resource.data.createdAt);
+      allow update: if isAdmin()
+        && changedKeys().hasOnly(['name', 'type', 'active'])
+        && isValidHead(request.resource.data);
+      allow delete: if isAdmin();
     }
 
-    // Payment slip / bill for an entry (same id as the entry)
+    // ---------- expenses (entries) ----------
+
+    function isValidEntry(data) {
+      return data.keys().hasOnly([
+          'date', 'farm', 'headId', 'headName', 'type', 'amount', 'paidBy', 'note',
+          'hasAttachment', 'attachmentName', 'attachmentType', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasAll(['date', 'farm', 'headId', 'headName', 'type', 'amount', 'paidBy', 'note', 'createdBy'])
+        && isDate(data.date)
+        && data.farm in farms()
+        && data.headId is string
+        && exists(/databases/$(database)/documents/heads/$(data.headId))
+        && isText(data.headName, headNameMax())
+        && isType(data.type)
+        // number (not only int) so entries saved with decimals before rounding stay editable
+        && data.amount is number && data.amount > 0 && data.amount <= maxAmount()
+        && data.paidBy in paidByOptions()
+        && isText(data.note, noteMax())
+        && data.get('hasAttachment', false) is bool
+        && isText(data.get('attachmentName', ''), fileNameMax())
+        && data.get('attachmentType', '') in ['', 'image/jpeg', 'application/pdf'];
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isActive();
+      allow create: if isAdmin()
+        && isValidEntry(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid
+        && isNow(request.resource.data.createdAt)
+        && isNow(request.resource.data.updatedAt);
+      // Edits keep who created the entry and when
+      allow update: if isAdmin()
+        && isValidEntry(request.resource.data)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null)
+        && unchangedOrNow('updatedAt');
+      allow delete: if isAdmin();
+    }
+
+    // ---------- attachments (payment slip / bill; same id as the entry) ----------
+
+    function isValidAttachment(data, expenseId) {
+      return data.keys().hasOnly(['expenseId', 'data', 'name', 'type', 'size', 'createdBy', 'createdAt'])
+        && data.keys().hasAll(['expenseId', 'data', 'name', 'type', 'size', 'createdBy', 'createdAt'])
+        && data.expenseId == expenseId
+        && data.type in ['image/jpeg', 'application/pdf']
+        && data.data is string
+        && data.data.size() <= attachmentMaxChars()
+        && data.data.matches('data:(image/jpeg|application/pdf);base64,[A-Za-z0-9+/=]+')
+        && isFilledText(data.name, fileNameMax())
+        && data.size is number && data.size >= 0
+        && data.createdBy == request.auth.uid
+        && isNow(data.createdAt)
+        // saved in the same batch as (or after) its entry
+        && existsAfter(/databases/$(database)/documents/expenses/$(expenseId));
+    }
+
     match /attachments/{expenseId} {
       allow read: if isActive();
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isAdmin() && isValidAttachment(request.resource.data, expenseId);
+      allow delete: if isAdmin();
     }
 
-    // Admin change history (who changed what, when). Entries cannot be edited or deleted.
+    // ---------- auditLog: Admin change history; cannot be edited or deleted ----------
+
     match /auditLog/{logId} {
-      allow read, create: if isAdmin();
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['action', 'details', 'byUid', 'byEmail', 'at'])
+        && request.resource.data.keys().hasAll(['action', 'details', 'byUid', 'byEmail', 'at'])
+        && isFilledText(request.resource.data.action, 40)
+        && isText(request.resource.data.details, auditDetailsMax())
+        && request.resource.data.byUid == request.auth.uid
+        && request.resource.data.byEmail == request.auth.token.email
+        && isNow(request.resource.data.at);
     }
   }
 }
