@@ -41,8 +41,7 @@ test.describe("login and access", () => {
       await expect(page.locator(`#tabs button[data-page="${name}"]`)).toBeHidden();
     }
     await openTab(page, "reports");
-    await expect(page.locator("#export-report-btn")).toBeHidden();
-    await expect(page.locator("#print-report-btn")).toBeHidden();
+    await expect(page.locator("#export-report")).toBeHidden();
   });
 
   test("a login without a users record sees Access denied", async ({ page, admin }) => {

@@ -12,10 +12,13 @@ hosted on GitHub Pages. Engineering rules for every change are in [CLAUDE.md](CL
   All Dates, Custom), this month's expenses, highest head and farm, farm-wise and head-wise bars,
   farm comparison and monthly trend charts. Cash received and balance are in a closed "optional" section.
 - **Add Entry** (Admin): Expense Date, Farm, Expense Head, Amount (PKR), Paid By, Description, optional slip.
-- **Entries** (Admin): search, filters (farm, head, payer, type, dates), sort by date or amount, filtered
-  totals, edit, delete with confirmation, CSV export, and an optional cash book (running balance).
+- **Entries** (Admin): "Entries last updated" (date and time of the newest added or edited entry, always
+  shown), search, filters (farm, head, payer, type, dates), sort by date or amount, filtered totals, edit,
+  delete with confirmation, export, and an optional cash book (running balance).
 - **Reports** (Admin and Staff): Farm-wise, Head-wise, Monthly, Expense Details, Paid By and Cash Book.
-  Export CSV and Print / PDF (Admin) always use the filters on screen.
+- **Export** (Admin, Entries and Reports): **PDF** (opens the print window: choose "Save as PDF"; this
+  keeps Urdu text correct), **Excel** (a real .xlsx written by `src/lib/xlsx.js` + `src/lib/zip.js`, no
+  extra library) and **CSV**. All three use the filters on screen; Excel and CSV get exactly the same rows.
 - **Heads** and **Users** (Admin).
 
 ## How the numbers are calculated

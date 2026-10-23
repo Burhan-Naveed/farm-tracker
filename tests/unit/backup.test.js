@@ -15,7 +15,7 @@ const entry = (id, extra = {}) => ({
 describe("buildBackup", () => {
   const backup = buildBackup({
     heads: [head("h1", { createdAt: timestamp("2026-01-01T00:00:00Z") })],
-    expenses: [{ ...entry("e1"), createdMs: 123, createdAt: timestamp("2026-10-01T05:00:00Z") }],
+    expenses: [{ ...entry("e1"), createdMs: 123, updatedMs: 456, createdAt: timestamp("2026-10-01T05:00:00Z") }],
     users: [{ id: "u1", name: "Ali", role: "staff", status: "active" }]
   }, { createdAt: new Date("2026-10-23T10:30:00Z"), createdBy: "admin@farm.test" });
 
@@ -33,6 +33,7 @@ describe("buildBackup", () => {
     expect(backup.data.expenses[0].createdAt).toBe("2026-10-01T05:00:00.000Z");
     expect(backup.data.heads[0].createdAt).toBe("2026-01-01T00:00:00.000Z");
     expect(backup.data.expenses[0]).not.toHaveProperty("createdMs");
+    expect(backup.data.expenses[0]).not.toHaveProperty("updatedMs");
   });
   it("survives a JSON round trip", () => {
     expect(parseBackup(JSON.stringify(backup))).toEqual({ ok: true, backup });

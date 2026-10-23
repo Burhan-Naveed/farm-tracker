@@ -65,13 +65,17 @@ export function watchHeads(onChange, onError) {
   }, onError);
 }
 
-/** Watches all entries (newest first). Each entry gets createdMs for stable sorting. */
+/**
+ * Watches all entries (newest first). Each entry gets createdMs (for stable sorting)
+ * and updatedMs (when it was last added or edited; 0 when unknown).
+ */
 export function watchExpenses(onChange, onError) {
   const q = query(collection(db, "expenses"), orderBy("date", "desc"));
   return onSnapshot(q, (snap) => {
     onChange(snap.docs.map((d) => {
       const data = d.data({ serverTimestamps: "estimate" });
-      return { id: d.id, ...data, createdMs: data.createdAt ? data.createdAt.toMillis() : 0 };
+      const createdMs = data.createdAt ? data.createdAt.toMillis() : 0;
+      return { id: d.id, ...data, createdMs, updatedMs: data.updatedAt ? data.updatedAt.toMillis() : createdMs };
     }));
   }, onError);
 }

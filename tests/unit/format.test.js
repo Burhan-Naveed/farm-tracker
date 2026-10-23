@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addMoney, cleanText, formatMoney, formatNumber, formatSize, isValidDateString,
+  dateTimeText,   addMoney, cleanText, formatMoney, formatNumber, formatSize, isValidDateString,
   monthLabelOf, normalizeName, percentOf, pluralEntries, rangeLabel, shortDate, slugify, toDateString
 } from "../../src/lib/format.js";
 
@@ -70,6 +70,11 @@ describe("dates", () => {
     expect(shortDate("")).toBe("");
     expect(shortDate("2026-09-05")).toBe("05 Sep 2026");
     expect(shortDate("not a date")).toBe("");
+  });
+  it("dateTimeText shows local date and 12-hour time", () => {
+    expect(dateTimeText(new Date(2026, 9, 23, 15, 5).getTime())).toBe("23 Oct 2026, 03:05 PM");
+    expect(dateTimeText(new Date(2026, 0, 2, 0, 30).getTime())).toBe("02 Jan 2026, 12:30 AM");
+    expect(dateTimeText(new Date(2026, 0, 2, 12, 0).getTime())).toBe("02 Jan 2026, 12:00 PM");
   });
   it("describes every kind of date range", () => {
     expect(rangeLabel("2026-10-01", "2026-10-14")).toBe("01 Oct 2026 to 14 Oct 2026");

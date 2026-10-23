@@ -3,6 +3,8 @@
 // commas, quoted text, numbers kept as numbers).
 // =========================================================
 
+import { downloadBlob } from "./download.js";
+
 /** Prepares one CSV cell: quotes text with commas/quotes/line breaks and doubles inner quotes. */
 export function csvCell(value) {
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
@@ -19,13 +21,5 @@ export function buildCsv(rows) {
 
 /** Downloads rows as a .csv file in the browser. */
 export function downloadCsv(filename, rows) {
-  const blob = new Blob([buildCsv(rows)], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(filename, new Blob([buildCsv(rows)], { type: "text/csv;charset=utf-8" }));
 }

@@ -1,4 +1,6 @@
-import { asAdminDb, expect, login, openTab, readAll, readDownload, seedEntry, seedHeads, selectHead, serverTime, test } from "./support.js";
+import {
+  asAdminDb, expect, login, openTab, readAll, readDownload, readDownloadBytes, seedEntry, seedHeads, selectHead, serverTime, test, todayText
+} from "./support.js";
 
 const TRANSPORT = { headId: "default-06", headName: "Transport", type: "Outflow" };
 const SALES = { headId: "default-01", headName: "Sales", type: "Inflow" };
@@ -198,7 +200,7 @@ test.describe("entries page", () => {
     await expect(page.locator("#list-body tr").first()).toContainText("200");
 
     await page.locator("#flt-farm").selectOption("Fatehpur Farm");
-    const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-list-btn").click()]);
+    const [download] = await Promise.all([page.waitForEvent("download"), page.locator('#export-list [data-export="csv"]').click()]);
     const csv = await readDownload(download);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv.slice(1).split("\r\n")).toEqual([
@@ -209,6 +211,52 @@ test.describe("entries page", () => {
       "Total expenses,,,,200",
       "Cash received,,,,9000"
     ]);
+  });
+
+  test("Excel export: a real .xlsx with the same rows, numbers and Amjad Ali label", async ({ page, admin }) => {
+    await seedHeads(admin.uid);
+    await seedEntry({ ...TRANSPORT, date: "2026-10-05", farm: "Fatehpur Farm", amount: 200, note: "Truck & trailer" });
+    await login(page, admin.email);
+    await openTab(page, "list");
+    await expect(page.locator("#list-body tr")).toHaveCount(1);
+    const [download] = await Promise.all([page.waitForEvent("download"), page.locator('#export-list [data-export="excel"]').click()]);
+    expect(download.suggestedFilename()).toBe(`farm-entries-all-${todayText()}.xlsx`);
+    const file = await readDownloadBytes(download);
+    expect(file.subarray(0, 2).toString()).toBe("PK");   // a ZIP file, as every .xlsx is
+    const text = file.toString("utf8");                  // files are stored uncompressed, so the XML is readable
+    expect(text).toContain("<v>200</v>");
+    expect(text).toContain("Amjad Ali");
+    expect(text).toContain("Truck &amp; trailer");
+    expect(text).toContain("Total expenses");
+  });
+
+  test("PDF export opens the print window with every row and the filters on top", async ({ page, admin }) => {
+    await seedHeads(admin.uid);
+    await seedEntry({ ...TRANSPORT, date: "2026-10-05", farm: "Fatehpur Farm", amount: 200 });
+    await seedEntry({ ...TRANSPORT, date: "2026-10-06", farm: "Rehmanbad Farm", amount: 300 });
+    await login(page, admin.email);
+    await openTab(page, "list");
+    await page.evaluate(() => { window.print = () => { window.printed = (window.printed || 0) + 1; }; });
+    await page.locator("#flt-farm").selectOption("Fatehpur Farm");
+    await page.locator('#export-list [data-export="pdf"]').click();
+    await expect.poll(() => page.evaluate(() => window.printed)).toBe(1);
+    await expect(page.locator("#toast")).toContainText("Save as PDF");
+    await expect(page.locator("#list-print-meta")).toContainText("Farm: Fatehpur Farm");
+    await expect(page.locator("#list-body tr")).toHaveCount(1);
+  });
+
+  test("always shows when the entries were last updated", async ({ page, admin }) => {
+    await seedHeads(admin.uid);
+    await login(page, admin.email);
+    await openTab(page, "list");
+    await expect(page.locator("#list-last-update")).toHaveText("Entries last updated: no entries yet");
+    await openTab(page, "add");
+    await addEntry(page, { amount: "4321", farm: "Bhakkarpur Farm" });
+    await openTab(page, "list");
+    await expect(page.locator("#list-last-update")).toContainText(/Entries last updated: \d{2} \w{3} \d{4}, \d{2}:\d{2} (AM|PM)/);
+    await expect(page.locator("#list-last-update")).toContainText("Transport PKR 4,321 (Bhakkarpur Farm)");
+    await page.locator("#flt-farm").selectOption("Fatehpur Farm");   // filters do not hide it
+    await expect(page.locator("#list-last-update")).toContainText("PKR 4,321");
   });
 
   test("shows a helpful empty state that clears the filters", async ({ page, admin }) => {
@@ -274,7 +322,7 @@ test.describe("entries page", () => {
     await seedHeads(admin.uid);
     await login(page, admin.email);
     await openTab(page, "list");
-    await page.locator("#export-list-btn").click();
+    await page.locator('#export-list [data-export="csv"]').click();
     await expect(page.locator("#toast")).toHaveText("Nothing to export");
   });
 

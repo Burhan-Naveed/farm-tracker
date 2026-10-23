@@ -379,7 +379,7 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
 }
 .report-toolbar { margin-top: 0; }
 .report-toolbar label { margin-top: 0; }
-.list-toolbar > div, .report-export { display: flex; gap: 8px; flex-wrap: wrap; }
+.list-toolbar > div { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 #list-summary { font-weight: 600; font-size: 0.9rem; }
 
 /* ---------- Tables ---------- */
@@ -531,7 +531,7 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
   @page { size: A4; margin: 12mm; }
   body { background: #fff; font-size: 11pt; }
   .app-header, .tabs, .offline-banner, .toast, .report-toolbar, .no-print,
-  .page:not(#page-reports) { display: none !important; }
+  #page-add, #page-heads, #page-users { display: none !important; }
   .page, .card, .summary-card { animation: none !important; }
   main { padding: 0; max-width: none; }
   .card { box-shadow: none; border: 1px solid #bbb; break-inside: avoid; }
@@ -548,13 +548,15 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
 }
 
 /* ---------- "Designed by" credit ---------- */
+/* Shown in the bottom right corner, in bold */
 .credit {
   position: relative;
   z-index: 1;
   margin: 18px 0 0;
-  font-size: 0.82rem;
-  color: var(--muted);
-  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--label);
+  text-align: right;
   letter-spacing: 0.01em;
 }
 .credit b {
@@ -562,6 +564,8 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
   font-weight: 700;
 }
 .app-credit { margin: 28px 0 4px; }
+/* Login and Access denied screens: pinned to the bottom right corner */
+.center-view > .credit { position: absolute; right: 16px; bottom: calc(12px + env(safe-area-inset-bottom)); margin: 0; }
 @media print { .app-credit { display: none; } }
 
 /* ---------- Attachment (slip / bill) in the entry form ---------- */
@@ -781,7 +785,6 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
   .report-filters label { margin-top: 10px; }
   .segmented { margin-bottom: 6px; }
   .report-toolbar { flex-direction: column; align-items: stretch; }
-  .report-export { display: grid; grid-template-columns: 1fr 1fr; }
 }
 
 /* ---------- Entries ledger (one row per entry, running balance) ---------- */
@@ -920,7 +923,10 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
 
 /* Reports */
 .report-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.report-export { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+/* Export: PDF / Excel / CSV */
+.export-group { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.export-label { font-size: 0.82rem; font-weight: 700; color: var(--label); }
+.print-only { display: none; }
 .report-head { margin: 4px 0 14px; }
 .report-head h2 { margin-bottom: 2px; }
 .report-head p { margin: 0; }
@@ -941,7 +947,8 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
   .chips button { flex: 1 1 auto; padding: 8px 10px; }
   .date-pair { grid-template-columns: 1fr 1fr; }
   .report-actions { justify-content: stretch; }
-  .report-actions > .btn, .report-export, .report-export .btn { flex: 1; }
+  .report-actions > .btn, .export-group { flex: 1; }
+  .export-group .btn { flex: 1; }
   .segmented button { flex: 1 1 30%; }
   .tabs button { font-size: 0.6rem; }
   /* A total row on a phone: one line with its label */
@@ -953,6 +960,18 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
   .report-actions, .chips, .date-pair, .more-row, .cash-details { display: none !important; }
   .stat-grid { grid-template-columns: repeat(3, 1fr); }
   .stat-tile { border: 1px solid #bbb; }
-  .report-head { display: block; }
+  .report-head, .print-only { display: block; }
+  .data-table .actions, .data-table th:empty { display: none; }
+  .ledger-table, .entries-table { min-width: 0; font-size: 9.5pt; }
   .total-row td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* Entries: when the newest change was made (always shown) */
+.last-update {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
 }

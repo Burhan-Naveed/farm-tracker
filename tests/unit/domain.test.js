@@ -4,7 +4,7 @@ import {
   defaultHeadRecords, headKey, headNameOf, headTypeOf, headUsageCounts, headsById, pendingHeadRenames, sortedHeads, validateHead
 } from "../../src/domain/heads.js";
 import {
-  compareNewestFirst, compareOldestFirst, filterEntries, paidByLabel, sortEntries, sumEntries, validateEntry
+  compareNewestFirst, compareOldestFirst, filterEntries, lastUpdatedEntry, paidByLabel, sortEntries, sumEntries, validateEntry
 } from "../../src/domain/entries.js";
 import { sortedUsers, validateUser } from "../../src/domain/users.js";
 import { HEADS, HEAD_MAP, entry } from "./fixtures.js";
@@ -136,6 +136,18 @@ describe("validateEntry", () => {
   it("accepts every configured farm and Paid By option", () => {
     CONFIG.farms.forEach((farm) => expect(validateEntry({ ...valid, farm }, ctx).ok).toBe(true));
     PAID_BY_VALUES.forEach((paidBy) => expect(validateEntry({ ...valid, paidBy }, ctx).ok).toBe(true));
+  });
+});
+
+describe("lastUpdatedEntry", () => {
+  it("finds the entry added or edited most recently, whatever its date", () => {
+    const old = entry({ date: "2026-01-01", updatedMs: 900 });
+    const recent = entry({ date: "2026-10-01", updatedMs: 500 });
+    expect(lastUpdatedEntry([recent, old])).toBe(old);
+  });
+  it("is null without entries or times", () => {
+    expect(lastUpdatedEntry([])).toBeNull();
+    expect(lastUpdatedEntry([entry({ updatedMs: 0 })])).toBeNull();
   });
 });
 

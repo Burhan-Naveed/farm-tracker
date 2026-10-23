@@ -61,6 +61,13 @@ export function shortDate(d) {
   return `${day} ${SHORT_MONTHS[Number(month) - 1]} ${year}`;
 }
 
+/** A time in milliseconds -> "23 Oct 2026, 03:45 PM" (local time, the same on every device). */
+export function dateTimeText(ms) {
+  const d = new Date(ms);
+  const hours = d.getHours() % 12 || 12;
+  return `${shortDate(toDateString(d))}, ${String(hours).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} ${d.getHours() < 12 ? "AM" : "PM"}`;
+}
+
 /** "2026-10" -> "Oct 2026" (short, for chart labels). */
 export function shortMonthLabel(month) {
   const [year, m] = String(month).split("-");

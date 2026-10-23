@@ -106,12 +106,21 @@ export async function openTab(page, name) {
 /** Picks a head in a <select> by its visible name. */
 export const selectHead = (select, name) => select.selectOption({ label: name });
 
-/** Reads a downloaded CSV file (without the BOM). */
-export async function readDownload(download) {
+/** Reads a downloaded file as bytes (a Buffer). */
+export async function readDownloadBytes(download) {
   const stream = await download.createReadStream();
   const chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
+}
+
+/** Reads a downloaded CSV file as text. */
+export const readDownload = async (download) => (await readDownloadBytes(download)).toString("utf8");
+
+/** Today as "YYYY-MM-DD" in local time (as the app writes it). */
+export function todayText() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 /**

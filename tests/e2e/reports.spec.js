@@ -1,4 +1,4 @@
-import { createUser, expect, login, openTab, readDownload, seedEntry, seedHeads, test } from "./support.js";
+import { createUser, expect, login, openTab, readDownload, readDownloadBytes, seedEntry, seedHeads, test } from "./support.js";
 
 const SALES = { headId: "default-01", headName: "Sales", type: "Inflow" };
 const DIESEL = { headId: "default-08", headName: "Diesel for Machinery & Tractor", type: "Outflow" };
@@ -34,7 +34,7 @@ const table = (page) => page.locator("#report-tables table").first();
 
 /** Clicks Export CSV and returns the file name and its lines (without the BOM). */
 async function exportCsv(page) {
-  const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-report-btn").click()]);
+  const [download] = await Promise.all([page.waitForEvent("download"), page.locator('#export-report [data-export="csv"]').click()]);
   return { name: download.suggestedFilename(), lines: (await readDownload(download)).slice(1).split("\r\n") };
 }
 
@@ -68,6 +68,23 @@ test.describe("reports", () => {
       "Total,22000,100,3",
       ""
     ]);
+  });
+
+  test("Excel and PDF exports of a report", async ({ page, admin }) => {
+    await seedData(admin);
+    await login(page, admin.email);
+    await openReport(page, "farm");
+    await expect(kpis(page)).toContainText("PKR 22,000");
+    const [download] = await Promise.all([page.waitForEvent("download"), page.locator('#export-report [data-export="excel"]').click()]);
+    expect(download.suggestedFilename()).toBe("farm-wise-expense-report-2026-10-01_to_2026-10-31.xlsx");
+    const text = (await readDownloadBytes(download)).toString("utf8");
+    expect(text).toContain("Farm Tracker - Farm-wise Expense Report");
+    expect(text).toContain("<v>22000</v>");
+    expect(text).toContain('s="1"');   // titles, headings and totals are bold
+
+    await page.evaluate(() => { window.print = () => { window.printed = true; }; });
+    await page.locator('#export-report [data-export="pdf"]').click();
+    await expect.poll(() => page.evaluate(() => window.printed)).toBe(true);
   });
 
   test("the chart library loads (passes its integrity check) and draws the chart", async ({ page, admin }) => {
@@ -199,7 +216,7 @@ test.describe("reports", () => {
     await login(page, admin.email);
     await openReport(page, "details", "2025-01-01", "2025-01-31");
     await expect(page.locator("#report-tables")).toContainText("No expenses match these filters.");
-    await page.locator("#export-report-btn").click();
+    await page.locator('#export-report [data-export="csv"]').click();
     await expect(page.locator("#toast")).toHaveText("Nothing to export");
   });
 
@@ -213,6 +230,6 @@ test.describe("reports", () => {
     }
     await openReport(page, "farm");
     await expect(kpis(page)).toContainText("PKR 22,000");
-    await expect(page.locator("#export-report-btn")).toBeHidden();
+    await expect(page.locator("#export-report")).toBeHidden();
   });
 });

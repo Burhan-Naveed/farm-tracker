@@ -87,6 +87,11 @@ export function filterEntries(entries, filters, headMap) {
   );
 }
 
+/** The entry that was added or edited most recently (by updatedMs), or null when none has a time. */
+export function lastUpdatedEntry(entries) {
+  return entries.reduce((latest, x) => (x.updatedMs > (latest ? latest.updatedMs : 0) ? x : latest), null);
+}
+
 /** Totals of a list of entries: { inflow, outflow, net, count }. Outflow = expenses. */
 export function sumEntries(entries, headMap) {
   let inflow = 0;

@@ -3,15 +3,15 @@
 // sorting, edit, delete and CSV export.
 // - Normal view: one amount column (expenses in red), filtered totals
 // - Cash book view (optional): Inflow / Outflow / running Balance
+// - Export: PDF (print window), Excel and CSV of the filtered list
 // =========================================================
 
 import { TYPE_LABELS } from "../config.js";
-import { filterEntries, paidByLabel, sortEntries, sumEntries } from "../domain/entries.js";
+import { filterEntries, lastUpdatedEntry, paidByLabel, sortEntries, sumEntries } from "../domain/entries.js";
 import { headNameOf, headTypeOf } from "../domain/heads.js";
 import { buildLedger } from "../domain/ledger.js";
 import { orderedRange } from "../domain/reports.js";
-import { downloadCsv } from "../lib/csv.js";
-import { formatMoney, formatNumber, pluralEntries, rangeLabel, shortDate, todayString } from "../lib/format.js";
+import { dateTimeText, formatMoney, formatNumber, pluralEntries, rangeLabel, shortDate, todayString } from "../lib/format.js";
 import { escapeHtml, tableRowsHtml } from "../lib/html.js";
 import { deleteEntry } from "../services/data.js";
 import { state } from "../state.js";
@@ -20,6 +20,7 @@ import { $, fillSelect, readInputs, setHidden } from "./dom.js";
 import { onWriteError, showToast } from "./feedback.js";
 import { registerPage } from "./navigation.js";
 import { startEditing } from "./entry-form.js";
+import { bindExportButtons, downloadTable, printAsPdf } from "./export.js";
 import { openAttachment } from "./viewer.js";
 
 const FILTER_IDS = {
@@ -129,7 +130,17 @@ export function refreshEntryFilters() {
   select.value = state.headMap.has(keep) ? keep : "";
 }
 
+/** "Entries last updated: 23 Oct 2026, 03:45 PM · Transport PKR 1,500 (Fatehpur Farm)" (all entries, not only the filtered ones). */
+function renderLastUpdate() {
+  const last = lastUpdatedEntry(state.expenses);
+  $("list-last-update").innerHTML = last
+    ? `Entries last updated: <b>${escapeHtml(dateTimeText(last.updatedMs))}</b>` +
+      `<span class="muted"> · ${escapeHtml(headNameOf(last, state.headMap))} ${escapeHtml(formatMoney(last.amount))} (${escapeHtml(last.farm)})</span>`
+    : "Entries last updated: <b>no entries yet</b>";
+}
+
 function renderEntries() {
+  renderLastUpdate();
   const filters = readFilters();
   const entries = shownEntries();
   const sums = sumEntries(entries, state.headMap);
@@ -175,14 +186,28 @@ function confirmDelete(id) {
   showToast("Entry deleted");
 }
 
-/** Exports the filtered list (in the chosen order) as CSV, with the totals at the end. */
-function exportEntries() {
+/** The chosen filters as text, e.g. "Dates: all dates · Farm: All farms · ..." (printed above the list). */
+function filterSummary() {
+  const f = readFilters();
+  const typeText = { "": "All entries", Outflow: "Expenses only", Inflow: "Cash received only" }[f.type] || "All entries";
+  return [
+    `Dates: ${rangeLabel(f.from, f.to)}`,
+    `Farm: ${f.farm || "All farms"}`,
+    `Expense head: ${f.headId ? headNameOf({ headId: f.headId }, state.headMap) : "All heads"}`,
+    `Paid by: ${f.paidBy ? paidByLabel(f.paidBy) : "Anyone"}`,
+    `Show: ${typeText}`,
+    ...(f.search ? [`Search: ${f.search}`] : [])
+  ].join("  ·  ");
+}
+
+/** Exports the filtered list (in the chosen order) as Excel or CSV, with the totals at the end. */
+function exportEntries(format) {
   const rows = shownEntries();
   if (!rows.length) { showToast("Nothing to export", true); return; }
   const { from, to } = readFilters();
   const sums = sumEntries(rows, state.headMap);
-  const name = from || to ? `farm-entries-${from || "start"}_to_${to || "today"}` : "farm-entries-all-" + todayString();
-  downloadCsv(name + ".csv", [
+  const fileBase = from || to ? `farm-entries-${from || "start"}_to_${to || "today"}` : "farm-entries-all-" + todayString();
+  const table = [
     ["Date", "Farm", "Expense Head", "Type", "Amount (PKR)", "Paid By", "Description", "Attachment"],
     ...rows.map((x) => [
       x.date, x.farm, headNameOf(x, state.headMap), TYPE_LABELS[headTypeOf(x, state.headMap)],
@@ -191,7 +216,25 @@ function exportEntries() {
     [],
     ["Total expenses", "", "", "", sums.outflow],
     ...(sums.inflow ? [["Cash received", "", "", "", sums.inflow]] : [])
-  ]);
+  ];
+  const totalsFrom = rows.length + 2;   // the heading row, the entries, one empty row
+  downloadTable(format, {
+    fileBase,
+    sheet: "Entries",
+    rows: table,
+    boldRows: [0, ...table.slice(totalsFrom).map((_, i) => totalsFrom + i)]
+  });
+}
+
+/** PDF: draws every row (not only the first page) with the filters on top, then opens the print window. */
+function printEntries() {
+  if (!shownEntries().length) { showToast("Nothing to export", true); return; }
+  printAsPdf(() => {
+    rowLimit = Infinity;
+    renderEntries();
+    $("list-print-title").textContent = isCashBook() ? "Farm Entries - Cash Book" : "Farm Entries";
+    $("list-print-meta").textContent = filterSummary();
+  });
 }
 
 export function initEntriesPage() {
@@ -199,7 +242,7 @@ export function initEntriesPage() {
   $("flt-cashbook").addEventListener("change", renderFromTop);
   $("flt-clear").addEventListener("click", clearFilters);
   $("list-empty-clear").addEventListener("click", clearFilters);
-  $("export-list-btn").addEventListener("click", exportEntries);
+  bindExportButtons($("export-list"), { pdf: printEntries, table: exportEntries });
   $("list-more").addEventListener("click", () => {
     rowLimit += PAGE_SIZE;
     renderEntries();

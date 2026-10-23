@@ -9,20 +9,21 @@
 // - Paid By:    who paid (Amjad Ali, Manager, Other)
 // - Cash Book:  the optional Inflow / Outflow / Net view
 // Each report returns table models; the same models are drawn on
-// screen and exported to CSV (see report-table.js).
+// screen and exported to Excel / CSV (see report-table.js); PDF
+// is the print window of the same page.
 // =========================================================
 
 import { CONFIG, TYPE_LABELS, TYPES } from "../config.js";
 import { paidByLabel, sortEntries } from "../domain/entries.js";
 import { headNameOf } from "../domain/heads.js";
 import { buildExpenseAnalysis, buildTotalReport } from "../domain/reports.js";
-import { downloadCsv } from "../lib/csv.js";
 import { addMoney, formatMoney, monthLabelOf, rangeLabel, slugify, todayString } from "../lib/format.js";
 import { escapeHtml } from "../lib/html.js";
 import { state } from "../state.js";
 import { SINGLE_COLOR, farmColor, renderBarChart, seriesColor } from "./chart.js";
 import { farmOptions, headGroupsHtml, paidByOptions, statTileHtml } from "./components.js";
 import { $, fillSelect, setHidden } from "./dom.js";
+import { bindExportButtons, downloadTable, printAsPdf } from "./export.js";
 import { showToast } from "./feedback.js";
 import { getCurrentPage, registerPage } from "./navigation.js";
 import { bindPeriodFilter } from "./period-filter.js";
@@ -330,26 +331,46 @@ function renderFromTop() {
   renderReports();
 }
 
-/** Downloads the open report exactly as shown: filters at the top, then every table with its totals. */
-function exportReport() {
+/** The open report with nothing in it (then there is nothing to export). */
+const isEmptyReport = (report) => report.tables.every((t) => !t.rows.length);
+
+/**
+ * Downloads the open report exactly as shown, as Excel or CSV: filters at the
+ * top, then every table with its totals. Titles, headings and totals are bold in Excel.
+ */
+function exportReport(format) {
   const f = readFilters();
   const report = VIEWS[reportView](f);
-  if (report.tables.every((t) => !t.rows.length)) { showToast("Nothing to export", true); return; }
+  if (isEmptyReport(report)) { showToast("Nothing to export", true); return; }
   const rows = [
     ["Farm Tracker - " + report.title],
     ...filterLines(f),
     ["Exported on", todayString()],
     []
   ];
-  report.tables.forEach((model) => rows.push(...modelCsvRows(model), []));
-  downloadCsv(`${slugify(report.title)}-${f.from || "start"}_to_${f.to || "today"}.csv`, rows);
+  const boldRows = [0];
+  report.tables.forEach((model) => {
+    const start = rows.length;
+    const part = modelCsvRows(model);
+    const footerCount = (model.footer || []).length;
+    boldRows.push(start, start + 1, ...part.slice(part.length - footerCount).map((_, i) => start + part.length - footerCount + i));
+    rows.push(...part, []);
+  });
+  downloadTable(format, {
+    fileBase: `${slugify(report.title)}-${f.from || "start"}_to_${f.to || "today"}`,
+    sheet: report.title,
+    rows,
+    boldRows
+  });
 }
 
-/** Prints every row (not only the first page), so the PDF matches the export. */
+/** PDF: draws every row (not only the first page), then opens the print window. */
 function printReport() {
-  rowLimit = Infinity;
-  renderReports();
-  window.print();
+  if (isEmptyReport(VIEWS[reportView](readFilters()))) { showToast("Nothing to export", true); return; }
+  printAsPdf(() => {
+    rowLimit = Infinity;
+    renderReports();
+  });
 }
 
 /** Fills the Head dropdown: expense heads only (inactive ones too, they still have entries). */
@@ -385,8 +406,7 @@ export function initReportsPage() {
     renderFromTop();
   });
   $("rpt-clear").addEventListener("click", clearFilters);
-  $("export-report-btn").addEventListener("click", exportReport);
-  $("print-report-btn").addEventListener("click", printReport);
+  bindExportButtons($("export-report"), { pdf: printReport, table: exportReport });
   $("report-tables").addEventListener("click", (e) => {
     if (!e.target.closest("button[data-more]")) return;
     rowLimit += PAGE_SIZE;

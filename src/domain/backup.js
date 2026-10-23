@@ -24,12 +24,12 @@ function toPlain(value) {
 
 /**
  * Builds the backup object. collections: { heads: [{ id, ...fields }], ... }.
- * The temporary "createdMs" field the app adds to entries is left out.
+ * The temporary "createdMs" / "updatedMs" fields the app adds to entries are left out.
  */
 export function buildBackup(collections, { createdAt, createdBy }) {
   const data = Object.fromEntries(BACKUP_COLLECTIONS.map((name) => [
     name,
-    (collections[name] || []).map(({ createdMs, ...doc }) => toPlain(doc))
+    (collections[name] || []).map(({ createdMs, updatedMs, ...doc }) => toPlain(doc))
   ]));
   const counts = Object.fromEntries(BACKUP_COLLECTIONS.map((name) => [name, data[name].length]));
   return { app: BACKUP_APP, version: BACKUP_VERSION, createdAt: createdAt.toISOString(), createdBy, counts, data };

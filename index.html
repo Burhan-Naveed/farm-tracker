@@ -256,7 +256,14 @@
 
       <!-- ---------- ENTRIES LIST ---------- -->
       <section id="page-list" class="page hidden">
-        <div class="card">
+        <!-- Shown only when printed / saved as PDF -->
+        <div class="report-head print-only">
+          <h2 id="list-print-title">Farm Entries</h2>
+          <p id="list-print-meta" class="muted small"></p>
+        </div>
+        <!-- Always shown: when the newest change to any entry was made -->
+        <p id="list-last-update" class="last-update" aria-live="polite"></p>
+        <div class="card no-print">
           <div class="filters">
             <div class="wide"><label for="flt-search">Search description</label><input type="search" id="flt-search" placeholder="Search description or head…"></div>
             <div><label for="flt-farm">Farm</label><select id="flt-farm"></select></div>
@@ -284,7 +291,12 @@
             <label class="check"><input type="checkbox" id="flt-cashbook"> Show cash book (running balance)</label>
             <div>
               <button class="btn btn-light btn-small" id="flt-clear">Clear filters</button>
-              <button class="btn btn-primary btn-small" id="export-list-btn">Export CSV</button>
+              <span class="export-group" id="export-list" role="group" aria-label="Export">
+                <span class="export-label">Export:</span>
+                <button type="button" class="btn btn-primary btn-small" data-export="pdf">PDF</button>
+                <button type="button" class="btn btn-primary btn-small" data-export="excel">Excel</button>
+                <button type="button" class="btn btn-primary btn-small" data-export="csv">CSV</button>
+              </span>
             </div>
           </div>
         </div>
@@ -341,9 +353,11 @@
           </div>
           <div class="report-actions">
             <button class="btn btn-light btn-small" id="rpt-clear">Clear filters</button>
-            <span class="admin-only report-export">
-              <button class="btn btn-primary btn-small" id="export-report-btn">Export CSV</button>
-              <button class="btn btn-light btn-small" id="print-report-btn">Print / PDF</button>
+            <span class="admin-only export-group" id="export-report" role="group" aria-label="Export">
+              <span class="export-label">Export:</span>
+              <button type="button" class="btn btn-primary btn-small" data-export="pdf">PDF</button>
+              <button type="button" class="btn btn-primary btn-small" data-export="excel">Excel</button>
+              <button type="button" class="btn btn-primary btn-small" data-export="csv">CSV</button>
             </span>
           </div>
         </div>
