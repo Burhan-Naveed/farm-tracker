@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ATTACHMENT, CONFIG, LIMITS } from "../../src/config.js";
+import { ATTACHMENT, CONFIG, LIMITS, PAID_BY_VALUES } from "../../src/config.js";
 
 const rules = readFileSync(join(import.meta.dirname, "..", "..", "firestore.rules"), "utf8");
 
@@ -16,7 +16,7 @@ function rulesValue(name) {
 
 describe("firestore.rules matches src/config.js", () => {
   it("farms", () => expect(rulesValue("farms")).toEqual(CONFIG.farms));
-  it("Paid By options", () => expect(rulesValue("paidByOptions")).toEqual(CONFIG.paidByOptions));
+  it("Paid By options", () => expect(rulesValue("paidByOptions")).toEqual(PAID_BY_VALUES));
   it("limits", () => {
     expect(rulesValue("maxAmount")).toBe(LIMITS.maxAmount);
     expect(rulesValue("noteMax")).toBe(LIMITS.noteMax);

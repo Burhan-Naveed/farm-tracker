@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CONFIG, LIMITS } from "../../src/config.js";
+import { CONFIG, LIMITS, PAID_BY_VALUES } from "../../src/config.js";
 import {
-  defaultHeadRecords, headNameOf, headTypeOf, headUsageCounts, headsById, sortedHeads, validateHead
+  defaultHeadRecords, headKey, headNameOf, headTypeOf, headUsageCounts, headsById, pendingHeadRenames, sortedHeads, validateHead
 } from "../../src/domain/heads.js";
-import { compareNewestFirst, compareOldestFirst, filterEntries, sumEntries, validateEntry } from "../../src/domain/entries.js";
+import {
+  compareNewestFirst, compareOldestFirst, filterEntries, paidByLabel, sortEntries, sumEntries, validateEntry
+} from "../../src/domain/entries.js";
 import { sortedUsers, validateUser } from "../../src/domain/users.js";
 import { HEADS, HEAD_MAP, entry } from "./fixtures.js";
 
@@ -52,11 +54,41 @@ describe("heads", () => {
       expect(validateHead({ name: "Seeds", type: "Other" }, ctx).ok).toBe(false);
     });
     it("blocks duplicates ignoring case and spaces", () => {
-      expect(validateHead({ name: " sALES ", type: "Inflow" }, ctx).error).toBe("A head with this name already exists.");
+      expect(validateHead({ name: " sALES ", type: "Inflow" }, ctx).error).toBe('A head with this name already exists: "Sales".');
+    });
+    it("blocks duplicates that differ only in punctuation or & / and", () => {
+      const heads = [...HEADS, { id: "m", name: "Misc. Expenses", type: "Outflow", active: true }, { id: "s", name: "Seeds & Fertilizer", type: "Outflow", active: true }];
+      expect(validateHead({ name: "misc expenses", type: "Outflow" }, { heads }).ok).toBe(false);
+      expect(validateHead({ name: "Seeds and Fertilizer", type: "Outflow" }, { heads }).ok).toBe(false);
+      expect(validateHead({ name: "Seeds", type: "Outflow" }, { heads }).ok).toBe(true);
     });
     it("lets a head keep its own name while editing", () => {
       expect(validateHead({ name: "Sales", type: "Outflow" }, { heads: HEADS, editingId: "sales" }).ok).toBe(true);
     });
+  });
+});
+
+describe("head renames (Cash by BM -> Paid by Amjad Ali)", () => {
+  const renames = [{ from: "Cash by BM", to: "Paid by Amjad Ali" }];
+  const bm = { id: "bm", name: "Cash by BM", type: "Inflow", active: true };
+
+  it("headKey ignores case, spaces and punctuation", () => {
+    expect(headKey(" Cash  by B.M. ")).toBe(headKey("cash by bm"));
+    expect(headKey("A & B")).toBe(headKey("a and b"));
+  });
+  it("offers the rename when the old head exists", () => {
+    expect(pendingHeadRenames([...HEADS, bm], renames)).toEqual([{ head: bm, to: "Paid by Amjad Ali", conflict: null }]);
+  });
+  it("offers nothing once the head has been renamed (or never existed)", () => {
+    expect(pendingHeadRenames([...HEADS, { ...bm, name: "Paid by Amjad Ali" }], renames)).toEqual([]);
+    expect(pendingHeadRenames(HEADS, renames)).toEqual([]);
+  });
+  it("reports a conflict instead of creating a duplicate", () => {
+    const existing = { id: "x", name: "Paid by Amjad Ali", type: "Outflow", active: true };
+    expect(pendingHeadRenames([bm, existing], renames)).toEqual([{ head: bm, to: "Paid by Amjad Ali", conflict: existing }]);
+  });
+  it("uses the configured renames by default", () => {
+    expect(pendingHeadRenames([bm])).toHaveLength(1);
   });
 });
 
@@ -74,23 +106,26 @@ describe("validateEntry", () => {
     expect(validateEntry({ ...valid, amount: "99.6" }, ctx).value.amount).toBe(100);
   });
   it.each([
-    ["missing date", { date: "" }, "Please select a valid date."],
-    ["impossible date", { date: "2026-02-30" }, "Please select a valid date."],
-    ["unknown farm", { farm: "Other Farm" }, "Please select a farm."],
-    ["missing head", { headId: "" }, "Please select a head."],
-    ["deleted head", { headId: "nope" }, "Please select a head."],
-    ["inactive head", { headId: "old" }, "Please select a head."],
-    ["empty amount", { amount: "" }, "Please enter the amount as a number, for example 15000."],
-    ["text amount", { amount: "12abc" }, "Please enter the amount as a number, for example 15000."],
-    ["negative amount", { amount: "-5" }, "Please enter the amount as a number, for example 15000."],
-    ["scientific notation", { amount: "1e5" }, "Please enter the amount as a number, for example 15000."],
-    ["zero amount", { amount: "0" }, "Amount must be at least 1 rupee."],
-    ["amount that rounds to zero", { amount: "0.4" }, "Amount must be at least 1 rupee."],
-    ["huge amount", { amount: String(LIMITS.maxAmount + 1) }, "Amount is too large. Please check it."],
-    ["unknown Paid By", { paidBy: "Someone" }, "Please select Paid By."],
-    ["note too long", { note: "x".repeat(LIMITS.noteMax + 1) }, `Note can be at most ${LIMITS.noteMax} characters.`]
-  ])("rejects %s", (_, change, error) => {
-    expect(validateEntry({ ...valid, ...change }, ctx)).toEqual({ ok: false, error });
+    ["missing date", { date: "" }, "date", "Please select a valid expense date."],
+    ["impossible date", { date: "2026-02-30" }, "date", "Please select a valid expense date."],
+    ["unknown farm", { farm: "Other Farm" }, "farm", "Please select a farm."],
+    ["missing head", { headId: "" }, "headId", "Please select an expense head."],
+    ["deleted head", { headId: "nope" }, "headId", "Please select an expense head."],
+    ["inactive head", { headId: "old" }, "headId", "Please select an expense head."],
+    ["empty amount", { amount: "" }, "amount", "Please enter the amount."],
+    ["text amount", { amount: "12abc" }, "amount", "Please enter the amount as a number, for example 15000."],
+    ["negative amount", { amount: "-5" }, "amount", "Please enter the amount as a number, for example 15000."],
+    ["scientific notation", { amount: "1e5" }, "amount", "Please enter the amount as a number, for example 15000."],
+    ["zero amount", { amount: "0" }, "amount", "Amount must be greater than zero."],
+    ["amount that rounds to zero", { amount: "0.4" }, "amount", "Amount must be at least PKR 1."],
+    ["huge amount", { amount: String(LIMITS.maxAmount + 1) }, "amount", "Amount is too large. Please check it."],
+    ["unknown Paid By", { paidBy: "Someone" }, "paidBy", "Please select who paid."],
+    ["note too long", { note: "x".repeat(LIMITS.noteMax + 1) }, "note", `Description can be at most ${LIMITS.noteMax} characters.`]
+  ])("rejects %s", (_, change, field, error) => {
+    expect(validateEntry({ ...valid, ...change }, ctx)).toEqual({ ok: false, field, error });
+  });
+  it("accepts an amount typed with thousands commas", () => {
+    expect(validateEntry({ ...valid, amount: "12,500" }, ctx).value.amount).toBe(12500);
   });
   it("accepts the largest allowed amount and the longest note", () => {
     expect(validateEntry({ ...valid, amount: String(LIMITS.maxAmount), note: "x".repeat(LIMITS.noteMax) }, ctx).ok).toBe(true);
@@ -100,7 +135,23 @@ describe("validateEntry", () => {
   });
   it("accepts every configured farm and Paid By option", () => {
     CONFIG.farms.forEach((farm) => expect(validateEntry({ ...valid, farm }, ctx).ok).toBe(true));
-    CONFIG.paidByOptions.forEach((paidBy) => expect(validateEntry({ ...valid, paidBy }, ctx).ok).toBe(true));
+    PAID_BY_VALUES.forEach((paidBy) => expect(validateEntry({ ...valid, paidBy }, ctx).ok).toBe(true));
+  });
+});
+
+describe("paidByLabel", () => {
+  it("shows BM as Amjad Ali and keeps the other names", () => {
+    expect(paidByLabel("BM")).toBe("Amjad Ali");
+    expect(paidByLabel("Manager")).toBe("Manager");
+    expect(paidByLabel("Other")).toBe("Other");
+  });
+  it("shows an unknown saved value as it is", () => {
+    expect(paidByLabel("Someone")).toBe("Someone");
+    expect(paidByLabel(undefined)).toBe("");
+  });
+  it("keeps BM as the saved value, so old entries stay valid", () => {
+    expect(PAID_BY_VALUES).toEqual(["BM", "Manager", "Other"]);
+    expect(CONFIG.defaultPaidBy).toBe("BM");
   });
 });
 
@@ -126,7 +177,19 @@ describe("entry sorting, filtering and totals", () => {
     expect(filterEntries(all, { type: "Outflow" }, HEAD_MAP)).toEqual([b, c]);
     expect(filterEntries(all, { from: "2026-10-02" }, HEAD_MAP)).toEqual([b, c]);
     expect(filterEntries(all, { to: "2026-10-01" }, HEAD_MAP)).toEqual([a]);
-    expect(filterEntries(all, { search: " diesel " }, HEAD_MAP)).toEqual([b]);
+    expect(filterEntries(all, { search: "tractor " }, HEAD_MAP)).toEqual([b]);
+    expect(filterEntries(all, { paidBy: "BM" }, HEAD_MAP)).toEqual(all);
+    expect(filterEntries(all, { paidBy: "Manager" }, HEAD_MAP)).toEqual([]);
+  });
+  it("search also finds the head name", () => {
+    expect(filterEntries(all, { search: "salary" }, HEAD_MAP)).toEqual([c]);
+  });
+  it("sorts by date or amount", () => {
+    expect(sortEntries(all, "amount-desc").map((x) => x.id)).toEqual([a.id, b.id, c.id]);
+    expect(sortEntries(all, "amount-asc").map((x) => x.id)).toEqual([c.id, b.id, a.id]);
+    expect(sortEntries(all, "date-asc").map((x) => x.id)).toEqual([a.id, b.id, c.id]);
+    expect(sortEntries(all, "unknown").map((x) => x.id)).toEqual([c.id, b.id, a.id]);
+    expect(all.map((x) => x.id)).toEqual([a.id, b.id, c.id]);   // the original list is not changed
   });
   it("combines filters", () => {
     expect(filterEntries(all, { type: "Outflow", from: "2026-10-03", search: "tractor" }, HEAD_MAP)).toEqual([b]);

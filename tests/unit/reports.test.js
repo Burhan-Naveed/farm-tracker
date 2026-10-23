@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildFarmReport, buildHeadReport, buildTotalReport, orderedRange, zeroByFarm } from "../../src/domain/reports.js";
+import { headsById } from "../../src/domain/heads.js";
+import { buildExpenseAnalysis, buildTotalReport, orderedRange } from "../../src/domain/reports.js";
 import { HEADS, HEAD_MAP, entry } from "./fixtures.js";
 
 const F = "Fatehpur Farm";
@@ -60,50 +61,87 @@ describe("date ranges in Total Report", () => {
   });
 });
 
-describe("buildFarmReport", () => {
-  const r = buildFarmReport(entries, HEAD_MAP, OCT, F);
+describe("buildExpenseAnalysis", () => {
+  const all = [
+    ...entries,
+    entry({ date: "2026-10-07", farm: B, headId: "salary", amount: 4000, paidBy: "Manager" }),
+    entry({ date: "2026-08-15", farm: R, headId: "salary", amount: 600 })
+  ];
+  const a = buildExpenseAnalysis(all, HEAD_MAP, OCT);
 
-  it("only includes the farm's entries of the month, oldest first", () => {
-    expect(r.entries.map((x) => x.date)).toEqual(["2026-10-01", "2026-10-02"]);
+  it("counts only expenses (Outflow), not cash received, inside the dates", () => {
+    expect(a.total).toBe(8300);
+    expect(a.count).toBe(4);
+    expect(a.entries.every((x) => x.headId !== "sales")).toBe(true);
   });
-  it("totals per type and net", () => {
-    expect(r.totals).toEqual({ Inflow: 10000, Outflow: 2500 });
-    expect(r.net).toBe(7500);
-  });
-  it("lists used heads, biggest first, with counts", () => {
-    expect(r.heads).toEqual([
-      { name: "Sales", type: "Inflow", total: 10000, count: 1 },
-      { name: "Diesel", type: "Outflow", total: 2500, count: 1 }
+  it("gives farm totals with their share, in the usual farm order", () => {
+    expect(a.farms).toEqual([
+      { farm: F, total: 2500, count: 1, share: 30 },
+      { farm: B, total: 5500, count: 2, share: 66 },
+      { farm: R, total: 300, count: 1, share: 4 }
     ]);
+    expect(a.highestFarm.farm).toBe(B);
   });
-  it("counts inflow entries and slips", () => {
-    expect(r.inflowCount).toBe(1);
-    expect(r.slipCount).toBe(1);
+  it("lists heads biggest first, with farm columns and share", () => {
+    expect(a.heads.map((h) => [h.name, h.total, h.count])).toEqual([["Diesel", 4000, 2], ["Salary", 4000, 1], ["Old Head", 300, 1]]);
+    expect(a.heads[0].byFarm).toEqual({ [F]: 2500, [B]: 1500, [R]: 0 });
+    expect(a.heads.find((h) => h.id === "old").active).toBe(false);
+    expect(a.highestHead.name).toBe("Diesel");
   });
-  it("is empty for a month without entries", () => {
-    const empty = buildFarmReport(entries, HEAD_MAP, { from: "2025-01-01", to: "2025-01-31" }, F);
-    expect(empty).toMatchObject({ entries: [], heads: [], net: 0, inflowCount: 0, slipCount: 0 });
+  it("groups payers with the Amjad Ali label for BM", () => {
+    expect(a.payers.map((p) => [p.value, p.name, p.total])).toEqual([["BM", "Amjad Ali", 4300], ["Manager", "Manager", 4000]]);
   });
-});
-
-describe("buildHeadReport", () => {
-  it("totals one head across all farms, by farm and by month", () => {
-    const r = buildHeadReport(entries, { headId: "diesel", farm: "", from: "", to: "" });
-    expect(r.total).toBe(5049);
-    expect(r.byFarm).toEqual({ [F]: 3499, [B]: 1500, [R]: 0 });
-    expect([...r.byMonth.entries()]).toEqual([["2026-09", 999], ["2026-10", 4050]]);
-    expect(r.largest).toBe(2500);
-    expect(r.average).toBeCloseTo(5049 / 4);
+  it("never double counts: every grouping adds up to the same total", () => {
+    const sum = (rows) => rows.reduce((t, r) => t + r.total, 0);
+    expect(sum(a.farms)).toBe(a.total);
+    expect(sum(a.heads)).toBe(a.total);
+    expect(sum(a.payers)).toBe(a.total);
+    expect(sum(a.months)).toBe(a.total);
+    a.heads.forEach((h) => expect(Object.values(h.byFarm).reduce((t, v) => t + v, 0)).toBe(h.total));
   });
-  it("filters by farm and date range (inclusive)", () => {
-    const r = buildHeadReport(entries, { headId: "diesel", farm: F, from: "2026-10-01", to: "2026-10-02" });
-    expect(r.entries).toHaveLength(1);
-    expect(r.total).toBe(2500);
+  it("filters by farm, head and payer", () => {
+    expect(buildExpenseAnalysis(all, HEAD_MAP, { ...OCT, farm: B }).total).toBe(5500);
+    expect(buildExpenseAnalysis(all, HEAD_MAP, { ...OCT, headId: "diesel" }).total).toBe(4000);
+    expect(buildExpenseAnalysis(all, HEAD_MAP, { ...OCT, paidBy: "Manager" }).total).toBe(4000);
+    expect(buildExpenseAnalysis(all, HEAD_MAP, { ...OCT, headId: "sales" }).total).toBe(0);
   });
-  it("returns zeros when nothing matches", () => {
-    const r = buildHeadReport(entries, { headId: "salary", farm: "", from: "", to: "" });
-    expect(r).toMatchObject({ total: 0, largest: 0, average: 0, slipCount: 0 });
-    expect(r.byFarm).toEqual(zeroByFarm());
+  it("lists months from From to To with empty months filled and the change from the month before", () => {
+    const m = buildExpenseAnalysis(all, HEAD_MAP, { from: "2026-08-01", to: "2026-10-31" }).months;
+    expect(m.map((r) => [r.month, r.total, r.change, r.changePercent])).toEqual([
+      ["2026-08", 600, null, null],
+      ["2026-09", 999, 399, 67],
+      ["2026-10", 8300, 7301, 731]
+    ]);
+    expect(m[2].byHead.get("diesel")).toBe(4000);
+    expect(m[2].byFarm[B]).toBe(5500);
+  });
+  it("with open dates, months run from the first to the last expense", () => {
+    const m = buildExpenseAnalysis(all, HEAD_MAP, {}).months;
+    expect(m.map((r) => r.month)).toEqual(["2026-08", "2026-09", "2026-10"]);
+  });
+  it("change percent is empty after a month with no expenses", () => {
+    const m = buildExpenseAnalysis([entry({ date: "2026-10-02", amount: 100 })], HEAD_MAP, { from: "2026-09-01", to: "2026-10-31" }).months;
+    expect(m.map((r) => [r.month, r.change, r.changePercent])).toEqual([["2026-09", null, null], ["2026-10", 100, null]]);
+  });
+  it("a mistyped, very long range lists only the months that have expenses", () => {
+    const m = buildExpenseAnalysis(all, HEAD_MAP, { from: "0001-01-01", to: "9999-12-31" }).months;
+    expect(m.map((r) => r.month)).toEqual(["2026-08", "2026-09", "2026-10"]);
+    expect(buildExpenseAnalysis([], HEAD_MAP, { from: "0001-01-01", to: "9999-12-31" }).months).toEqual([]);
+  });
+  it("is empty and safe when nothing matches", () => {
+    const empty = buildExpenseAnalysis([], HEAD_MAP, {});
+    expect(empty).toMatchObject({ total: 0, count: 0, heads: [], payers: [], months: [], highestFarm: null, highestHead: null });
+    expect(empty.farms.map((f) => f.share)).toEqual([0, 0, 0]);
+  });
+  it("uses a renamed head's new name and keeps it as one row", () => {
+    const renamed = headsById([...HEADS.filter((h) => h.id !== "diesel"), { id: "diesel", name: "Diesel & Oil", type: "Outflow", active: true }]);
+    const r = buildExpenseAnalysis(all, renamed, OCT);
+    expect(r.heads.filter((h) => h.id === "diesel")).toHaveLength(1);
+    expect(r.heads[0].name).toBe("Diesel & Oil");
+  });
+  it("ignores entries of unknown farms and without a date", () => {
+    const r = buildExpenseAnalysis([entry({ farm: "Unknown Farm" }), entry({ date: undefined })], HEAD_MAP, {});
+    expect(r.count).toBe(0);
   });
 });
 

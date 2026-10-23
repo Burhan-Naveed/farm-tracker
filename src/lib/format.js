@@ -61,6 +61,12 @@ export function shortDate(d) {
   return `${day} ${SHORT_MONTHS[Number(month) - 1]} ${year}`;
 }
 
+/** "2026-10" -> "Oct 2026" (short, for chart labels). */
+export function shortMonthLabel(month) {
+  const [year, m] = String(month).split("-");
+  return `${SHORT_MONTHS[Number(m) - 1] || ""} ${year}`.trim();
+}
+
 /** Text like "01 Oct 2026 to 14 Oct 2026" for titles. */
 export function rangeLabel(from, to) {
   if (from && to) return `${shortDate(from)} to ${shortDate(to)}`;

@@ -6,7 +6,7 @@
 // missing; it never changes or deletes existing data.
 // =========================================================
 
-import { CONFIG, LIMITS, TYPES } from "../config.js";
+import { CONFIG, LIMITS, PAID_BY_VALUES, TYPES } from "../config.js";
 import { isValidDateString } from "../lib/format.js";
 
 export const BACKUP_APP = "farm-tracker";
@@ -49,7 +49,7 @@ function isRestorableEntry(x) {
   return isId(x.id) && isValidDateString(x.date) && CONFIG.farms.includes(x.farm) && isId(x.headId) &&
     isText(x.headName, LIMITS.headNameMax) && TYPES.includes(x.type) &&
     typeof x.amount === "number" && x.amount > 0 && x.amount <= LIMITS.maxAmount &&
-    CONFIG.paidByOptions.includes(x.paidBy) && isText(x.note ?? "", LIMITS.noteMax);
+    PAID_BY_VALUES.includes(x.paidBy) && isText(x.note ?? "", LIMITS.noteMax);
 }
 
 /**

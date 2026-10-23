@@ -8,8 +8,20 @@
 export const CONFIG = Object.freeze({
   farms: ["Fatehpur Farm", "Bhakkarpur Farm", "Rehmanbad Farm"],
   currency: "PKR",
-  paidByOptions: ["BM", "Manager", "Other"],
+  // Paid By: "value" is what is saved in the database (and checked in
+  // firestore.rules); "label" is what people see on screen and in exports.
+  // "BM" is Amjad Ali: old entries keep "BM" and simply show the new label.
+  paidBy: [
+    { value: "BM", label: "Amjad Ali" },
+    { value: "Manager", label: "Manager" },
+    { value: "Other", label: "Other" }
+  ],
   defaultPaidBy: "BM",
+  // Head names to update once (Heads page shows a button for the Admin).
+  // The head keeps its id, so every entry and report stays linked to it.
+  headRenames: [
+    { from: "Cash by BM", to: "Paid by Amjad Ali" }
+  ],
   // Used ONLY to fill the "heads" collection the first time;
   // after that heads are always read from Firestore.
   defaultHeads: [
@@ -28,8 +40,14 @@ export const CONFIG = Object.freeze({
   ]
 });
 
-/** Entry types. Every head is one of these. */
+/** The Paid By values saved in the database (the same list is in firestore.rules). */
+export const PAID_BY_VALUES = Object.freeze(CONFIG.paidBy.map((p) => p.value));
+
+/** Entry types. Every head is one of these. Outflow = expense, Inflow = cash received. */
 export const TYPES = Object.freeze(["Inflow", "Outflow"]);
+
+/** Words shown to people for each type. */
+export const TYPE_LABELS = Object.freeze({ Outflow: "Expense", Inflow: "Cash received" });
 
 /** User roles and statuses stored in the "users" collection. */
 export const ROLES = Object.freeze(["admin", "staff"]);
