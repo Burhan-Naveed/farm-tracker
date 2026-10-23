@@ -1,7 +1,7 @@
 // =========================================================
 // Service worker: caches the app shell so the app opens even
 // with weak or no internet. Firestore data is NOT handled here;
-// Firestore has its own offline storage (enabled in app.js).
+// Firestore has its own offline storage (enabled in src/firebase.js).
 //
 // When you change any app file, increase CACHE_VERSION so phones
 // download the new version.

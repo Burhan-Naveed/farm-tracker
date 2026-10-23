@@ -1,70 +1,81 @@
-# Farm Tracker – Setup Guide
+# Farm Tracker
 
 A PWA to record daily inflow and outflow for Fatehpur, Bhakkarpur and Rehmanbad farms.
-Full requirements are in [PRD.md](PRD.md).
+Plain HTML, CSS and JavaScript modules (no build step), Firebase Authentication and Cloud Firestore,
+hosted on GitHub Pages. Engineering rules for every change are in [CLAUDE.md](CLAUDE.md).
 
-## Files
+## How the code is organized
 
-| File | Purpose |
-|---|---|
-| `index.html` | All screens: login, add entry, entries list, reports, heads, users |
-| `style.css` | Green theme, mobile layout, print layout for PDF |
-| `app.js` | All app logic (login, roles, Firestore, reports, CSV export) |
-| `firebase-config.js` | Firebase project config (do not change) |
-| `manifest.json`, `service-worker.js`, `icons/` | PWA install and offline support |
-| `firestore.rules` | Security rules to paste into Firebase Console |
+```
+index.html, style.css      All screens and styles (phone layout, print layout for PDF)
+firebase-config.js         Firebase project config (public identifier, not a secret)
+firestore.rules            Security rules: the real protection (validated on the server)
+service-worker.js          Offline app shell; bump CACHE_VERSION on every app change
+manifest.json, icons/      PWA install
+src/
+  main.js                  Entry point: login -> role check -> live data -> draw open page
+  config.js                Farms, Paid By options, default heads, limits
+  firebase.js              Firebase setup (+ emulator switch for tests)
+  state.js                 Data in memory
+  domain/                  Pure logic: validation and report calculations (unit-tested)
+  services/                Every Firestore / Auth call (data.js, auth.js)
+  lib/                     Helpers: formatting, safe HTML, CSV, errors, image compression
+  ui/                      One module per page + shared components, navigation, messages
+tests/
+  unit/                    Vitest tests for domain/ and lib/
+  rules/                   Security-rules tests (Firestore emulator)
+  e2e/                     Playwright tests: the real app against the emulators, desktop and phone
+```
 
-## One-time Firebase setup
+Rules of thumb: pages never call Firestore directly (use `services/data.js`); anything put into HTML
+goes through `escapeHtml`; farm lists and limits in `firestore.rules` must match `src/config.js`
+(a unit test checks this).
 
-1. **Enable Email/Password login:** Firebase Console > Authentication > Sign-in method > Email/Password > Enable.
-2. **Block public sign-up:** Authentication > Settings > User actions > untick "Enable create (sign-up)".
-3. **Create Firestore:** Firestore Database > Create database (production mode).
-4. **Security rules:** Firestore Database > Rules > paste the content of `firestore.rules` > Publish.
-5. **Create the first Admin:**
-   - Authentication > Users > Add user (your email + password). Copy the **User UID** shown in the list.
-   - Firestore Database > Data > Start collection `users` > Document ID = the copied UID, with fields:
-     - `name` (string): your name
-     - `email` (string): your email
-     - `role` (string): `admin`
-     - `status` (string): `active`
-6. Open the app and log in as Admin. The 12 default heads are created automatically.
-7. **Authorized domain (after deploying):** Authentication > Settings > Authorized domains > add `<username>.github.io`.
+## Developer setup
 
-## Adding more users
+Needs Node.js 20+ and Java 21 (for the Firebase emulators).
+
+```
+npm install
+npx playwright install chromium
+npm test                 # unit + rules + end-to-end (all must pass before a release)
+npm run test:unit        # fast, no emulator
+npm run serve            # app at http://127.0.0.1:5500/ (add ?emulator to use local test data)
+```
+
+On Windows PowerShell use `npm.cmd` / `npx.cmd` if scripts are blocked.
+
+## Deploying
+
+- **App:** push to `main`; GitHub Pages publishes it. Bump `CACHE_VERSION` in `service-worker.js` first.
+- **Security rules:** `npx firebase login` once, then `npm run deploy:rules`.
+
+## One-time Firebase setup (already done for this project)
+
+1. Authentication > Sign-in method > enable Email/Password; Settings > User actions > untick "Enable create (sign-up)".
+2. Create Firestore (production mode) and deploy the rules (above).
+3. First Admin: Authentication > Users > Add user, copy the **User UID**. In Firestore create
+   `users/<UID>` with `name`, `email`, `role: "admin"`, `status: "active"` (no other fields).
+4. Log in as Admin; the 12 default heads are created automatically.
+5. Authentication > Settings > Authorized domains: add `<username>.github.io`.
+6. Recommended: Google Cloud Console > APIs & Services > Credentials > restrict the browser API key
+   to HTTP referrers `https://<username>.github.io/*` (and `http://127.0.0.1/*` for local work).
+
+## Adding users
 
 1. Firebase Console > Authentication > Users > **Add user** (email + temporary password). Copy the **User UID**.
-2. In the app: **Users** > Add User > enter Name, Email, paste the UID, choose role.
-3. Send the user the app link, email and temporary password. They can use **Change password** after logging in.
+2. In the app: **Users** > Add User > Name, Email, the UID, role.
+3. Send the user the link and temporary password; they use **Change password** after logging in.
 
-> Why the UID? Each `users` record must use the login's UID as its ID (security rules depend on it), and a
-> browser app cannot look up a UID from an email on the free plan.
+The UID is needed because each `users` record must use the login's UID as its ID, and a browser app
+cannot look up a UID from an email on the free plan.
 
-## Run locally
+## Attachments (slip / bill)
 
-Open the folder in VS Code and use the **Live Server** extension (right-click `index.html` > Open with Live Server).
-Opening `index.html` directly as a file will not work, because the app uses JavaScript modules.
-
-## Deploy to GitHub Pages
-
-1. Create a GitHub repository named `farm-tracker` and upload all files in this folder.
-2. Repository > Settings > Pages > Source: "Deploy from a branch", Branch: `main`, folder `/ (root)` > Save.
-3. After a minute the app is live at `https://<username>.github.io/farm-tracker/`.
-4. Add `<username>.github.io` to Firebase authorized domains (step 7 above).
+Firebase Storage needs the paid plan, so files are stored in Firestore (`attachments`, same id as the
+entry). Photos are compressed in the browser; PDFs must be under about 650 KB.
 
 ## Install on the phone
 
-- **Android (Chrome):** open the link > tap **Install App** in the header (or menu > Install app).
-- **iPhone (Safari):** open the link > Share > **Add to Home Screen**.
-
-## Updating the app later
-
-After changing any file, open `service-worker.js` and increase `CACHE_VERSION`
-(for example `farm-tracker-v1` to `farm-tracker-v2`), so installed phones pick up the new version.
-Phones load the new version on the next open after that.
-
-## Attachments (payment slip / bill)
-Each entry can optionally have one photo or PDF attached (Add Entry form > "Add photo or PDF").
-Firebase Storage needs the paid Blaze plan, so attachments are stored in Firestore
-(collection `attachments`, document id = entry id). Photos are compressed in the browser
-to fit Firestore's 1 MB document limit; PDFs must be under about 650 KB.
-After adding this feature, re-publish `firestore.rules` (it has an `attachments` rule).
+- **Android (Chrome):** open the link > **Install App** in the header.
+- **iPhone (Safari):** Share > **Add to Home Screen**.
