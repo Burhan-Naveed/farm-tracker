@@ -8,12 +8,12 @@
        127.0.0.1 is only used by the local test emulators. -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com;
+    script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com https://apis.google.com;
     style-src 'self' https://fonts.googleapis.com;
     font-src https://fonts.gstatic.com;
     img-src 'self' data: blob: https://www.google.com;
-    connect-src 'self' https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com https://cdnjs.cloudflare.com http://127.0.0.1:9099 http://127.0.0.1:8080;
-    frame-src https://farm-transaction-tracker.firebaseapp.com;
+    connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.gstatic.com https://fonts.gstatic.com https://cdnjs.cloudflare.com http://127.0.0.1:9099 http://127.0.0.1:8080;
+    frame-src https://farm-transaction-tracker.firebaseapp.com http://127.0.0.1:9099;
     worker-src 'self';
     manifest-src 'self';
     object-src 'none';
@@ -212,11 +212,13 @@
           </div>
         </div>
         <div class="card table-wrap">
-          <table class="data-table responsive-table">
+          <!-- Ledger: one row per entry, newest first, with a running balance -->
+          <table class="data-table ledger-table">
             <thead>
-              <tr><th>Date</th><th>Farm</th><th>Head</th><th>Type</th><th class="num">Amount</th><th>Paid By</th><th>Note</th><th>Actions</th></tr>
+              <tr><th>Date</th><th>Farm</th><th>Head / Note</th><th>Paid By</th><th class="num">Inflow</th><th class="num">Outflow</th><th class="num">Balance</th><th>Actions</th></tr>
             </thead>
             <tbody id="list-body"></tbody>
+            <tfoot id="list-foot"></tfoot>
           </table>
           <p id="list-empty" class="muted empty hidden">No entries found.</p>
         </div>

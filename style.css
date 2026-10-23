@@ -789,3 +789,27 @@ main { padding: 20px 16px 32px; max-width: 1200px; margin: 0 auto; }
   .report-toolbar { flex-direction: column; align-items: stretch; }
   .report-export { display: grid; grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------- Entries ledger (one row per entry, running balance) ---------- */
+.ledger-table td { vertical-align: top; }
+.ledger-table .nowrap { white-space: nowrap; }
+.ledger-table .ledger-note { display: block; color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+.ledger-table td.balance { font-weight: 700; }
+.ledger-table tfoot td { border-bottom: none; font-weight: 700; }
+.ledger-table .ledger-opening td { background: #faf9ff; color: #55557a; font-style: italic; }
+.ledger-table .ledger-total td { background: #ebe8ff; border-top: 1.5px solid var(--border); font-size: 1rem; }
+
+@media (max-width: 700px) {
+  /* Full table with sideways scroll; the Date column stays in place while scrolling */
+  .ledger-table { min-width: 780px; }
+  .ledger-table th:first-child, .ledger-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--card);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  .ledger-table tfoot td:first-child { background: inherit; }
+  .ledger-table .ledger-total td:first-child { background: #ebe8ff; }
+  .ledger-table .ledger-opening td:first-child { background: #faf9ff; }
+}

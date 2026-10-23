@@ -47,8 +47,8 @@ test.describe("entries", () => {
 
     await openTab(page, "list");
     await expect(page.locator("#list-body tr")).toHaveCount(1);
-    await expect(page.locator("#list-body tr").first()).toContainText("PKR 15,000");
-    await expect(page.locator("#list-summary")).toHaveText("1 entry | Inflow PKR 0 | Outflow PKR 15,000");
+    await expect(page.locator("#list-body tr").first()).toContainText("15,000");
+    await expect(page.locator("#list-summary")).toHaveText("1 entry | Inflow PKR 0 | Outflow PKR 15,000 | Balance -PKR 15,000");
   });
 
   test("shows notes as text, never as HTML", async ({ page, admin }) => {
@@ -71,7 +71,7 @@ test.describe("entries", () => {
     await page.locator("#f-amount").fill("750");
     await page.locator("#expense-save-btn").click();
     await expect(page.locator("#page-list")).toBeVisible();
-    await expect(page.locator("#list-body")).toContainText("PKR 750");
+    await expect(page.locator("#list-body")).toContainText("750");
     await expect.poll(async () => (await readAll("expenses"))[0].amount).toBe(750);
   });
 
@@ -83,7 +83,7 @@ test.describe("entries", () => {
     await page.locator(`[data-edit="${id}"]`).click();
     await page.locator("#f-amount").fill("999");
     await page.locator("#expense-cancel-btn").click();
-    await expect(page.locator("#list-body")).toContainText("PKR 500");
+    await expect(page.locator("#list-body")).toContainText("500");
     expect((await readAll("expenses"))[0].amount).toBe(500);
   });
 
@@ -138,6 +138,30 @@ test.describe("entries", () => {
     ]);
   });
 
+  test("the list is a ledger with Inflow, Outflow, running Balance and Opening balance", async ({ page, admin }) => {
+    await seedHeads(admin.uid);
+    await seedEntry({ date: "2026-09-20", farm: "Fatehpur Farm", headId: "default-01", headName: "Sales", type: "Inflow", amount: 50000 });
+    await seedEntry({ date: "2026-10-01", farm: "Fatehpur Farm", headId: "default-01", headName: "Sales", type: "Inflow", amount: 20000 });
+    await seedEntry({ date: "2026-10-03", farm: "Fatehpur Farm", headId: "default-06", headName: "Transport", type: "Outflow", amount: 5000, note: "Truck rent" });
+    await login(page, admin.email);
+    await openTab(page, "list");
+
+    const rows = page.locator("#list-body tr");
+    await expect(rows).toHaveCount(3);
+    // Newest first; Balance runs from the oldest entry
+    await expect(rows.nth(0)).toContainText("03 Oct 2026");
+    await expect(rows.nth(0).locator("td.balance")).toHaveText("65,000");
+    await expect(rows.nth(0)).toContainText("Truck rent");
+    await expect(rows.nth(2).locator("td.balance")).toHaveText("50,000");
+    await expect(page.locator("#list-foot .ledger-total")).toHaveText(/Total\s*70,000\s*5,000\s*65,000/);
+    await expect(page.locator("#list-foot .ledger-opening")).toHaveCount(0);
+
+    await page.locator("#flt-from").fill("2026-10-01");
+    await expect(rows).toHaveCount(2);
+    await expect(page.locator("#list-foot .ledger-opening")).toHaveText(/Opening balance \(before 01 Oct 2026\)\s*50,000/);
+    await expect(page.locator("#list-foot .ledger-total")).toHaveText(/Total\s*20,000\s*5,000\s*65,000/);
+  });
+
   test("export with no matching rows shows a message", async ({ page, admin }) => {
     await seedHeads(admin.uid);
     await login(page, admin.email);
@@ -155,7 +179,7 @@ test.describe("entries", () => {
     const otherPage = await other.newPage();
     await login(otherPage, admin.email);
     await addEntry(otherPage, { amount: "4321" });
-    await expect(page.locator("#list-body")).toContainText("PKR 4,321");
+    await expect(page.locator("#list-body")).toContainText("4,321");
     await other.close();
   });
 
