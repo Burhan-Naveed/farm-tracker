@@ -48,16 +48,18 @@ export function isValidDateString(text) {
   return !Number.isNaN(d.getTime()) && toDateString(d) === text;
 }
 
-/** True for a month written as "YYYY-MM". */
-export const isValidMonthString = (text) => typeof text === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(text);
-
 /** "2026-10" -> "October 2026" */
 export const monthLabelOf = (month) =>
   new Date(month + "-01T00:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
 
-/** "2026-10-01" -> "01 Oct 2026" */
-export const shortDate = (d) =>
-  d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-10-01" -> "01 Oct 2026" (same on every device; browsers differ, e.g. "Sep" / "Sept"). */
+export function shortDate(d) {
+  if (!isValidDateString(d)) return "";
+  const [year, month, day] = d.split("-");
+  return `${day} ${SHORT_MONTHS[Number(month) - 1]} ${year}`;
+}
 
 /** Text like "01 Oct 2026 to 14 Oct 2026" for titles. */
 export function rangeLabel(from, to) {

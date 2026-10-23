@@ -12,9 +12,15 @@ async function seedMonth(admin) {
   await seedEntry({ ...DIESEL, date: "2026-09-28", farm: "Rehmanbad Farm", amount: 3000 });
 }
 
-async function openReports(page, month = "2026-10") {
+/** Opens Reports for October 2026. */
+async function openReports(page) {
   await openTab(page, "reports");
-  await page.locator("#rpt-month").fill(month);
+  await setRange(page, "2026-10-01", "2026-10-31");
+}
+
+async function setRange(page, from, to) {
+  await page.locator("#rpt-from").fill(from);
+  await page.locator("#rpt-to").fill(to);
 }
 
 const summary = (page, n) => page.locator("#summary-cards .summary-card").nth(n);
@@ -24,7 +30,7 @@ test.describe("reports", () => {
     await seedMonth(admin);
     await login(page, admin.email);
     await openReports(page);
-    await expect(page.locator("#report-title")).toHaveText("Farm Report - October 2026");
+    await expect(page.locator("#report-title")).toHaveText("Farm Report - 01 Oct 2026 to 31 Oct 2026");
     await expect(summary(page, 0)).toContainText("PKR 50,000");
     await expect(summary(page, 0)).toContainText("PKR 20,000");
     await expect(summary(page, 0)).toContainText("PKR 30,000");
@@ -46,7 +52,7 @@ test.describe("reports", () => {
     await openReports(page);
     await expect(summary(page, 0)).toContainText("PKR 50,000");   // data has loaded
     const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-report-btn").click()]);
-    expect(download.suggestedFilename()).toBe("farm-report-2026-10.csv");
+    expect(download.suggestedFilename()).toBe("farm-report-2026-10-01_to_2026-10-31.csv");
     const lines = (await readDownload(download)).slice(1).split("\r\n");
     expect(lines[0]).toBe("Head,Type,Fatehpur Farm (PKR),Bhakkarpur Farm (PKR),Rehmanbad Farm (PKR),Total (PKR)");
     expect(lines).toContain("Total Inflow,Inflow,50000,0,0,50000");
@@ -60,15 +66,26 @@ test.describe("reports", () => {
     await openReports(page);
     await page.locator('#rpt-view button[data-view="farm"]').click();
     await page.locator("#rpt-farm").selectOption("Fatehpur Farm");
-    await expect(page.locator("#report-title")).toHaveText("Fatehpur Farm - October 2026");
+    await expect(page.locator("#report-title")).toHaveText("Fatehpur Farm - 01 Oct 2026 to 31 Oct 2026");
     await expect(page.locator("#farm-tx-title")).toHaveText("Transactions (2)");
     await expect(page.locator("#farm-summary")).toContainText("PKR 38,000");
     await expect(page.locator("#farm-tx-body [data-view]")).toHaveCount(1);
 
     const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-report-btn").click()]);
-    expect(download.suggestedFilename()).toBe("fatehpur-farm-report-2026-10.csv");
+    expect(download.suggestedFilename()).toBe("fatehpur-farm-report-2026-10-01_to_2026-10-31.csv");
     const csv = await readDownload(download);
     expect(csv).toContain("2026-10-03,Diesel for Machinery & Tractor,Outflow,12000,BM,,Yes");
+  });
+
+  test("Total Report covers several months with From and To", async ({ page, admin }) => {
+    await seedMonth(admin);
+    await login(page, admin.email);
+    await openTab(page, "reports");
+    await setRange(page, "2026-09-01", "2026-10-31");
+    await expect(page.locator("#report-title")).toHaveText("Farm Report - 01 Sep 2026 to 31 Oct 2026");
+    await expect(summary(page, 0)).toContainText("PKR 23,000");   // outflow includes September
+    await setRange(page, "", "");
+    await expect(page.locator("#report-title")).toHaveText("Farm Report - all dates");
   });
 
   test("Farm-wise report says when a farm has no transactions", async ({ page, admin }) => {
@@ -107,7 +124,7 @@ test.describe("reports", () => {
     const staff = await createUser({ email: "staff@farm.test", name: "Staff", role: "staff" });
     await login(page, staff.email);
     await expect(page.locator("#page-reports")).toBeVisible();
-    await page.locator("#rpt-month").fill("2026-10");
+    await setRange(page, "2026-10-01", "2026-10-31");
     await expect(summary(page, 0)).toContainText("PKR 30,000");
     await page.locator('#rpt-view button[data-view="farm"]').click();
     await expect(page.locator("#report-farm")).toBeVisible();

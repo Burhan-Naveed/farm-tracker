@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addMoney, cleanText, formatMoney, formatNumber, formatSize, isValidDateString, isValidMonthString,
+  addMoney, cleanText, formatMoney, formatNumber, formatSize, isValidDateString,
   monthLabelOf, normalizeName, percentOf, pluralEntries, rangeLabel, shortDate, slugify, toDateString
 } from "../../src/lib/format.js";
 
@@ -64,16 +64,12 @@ describe("dates", () => {
     expect(isValidDateString("")).toBe(false);
     expect(isValidDateString(undefined)).toBe(false);
   });
-  it("accepts only YYYY-MM months", () => {
-    expect(isValidMonthString("2026-10")).toBe(true);
-    expect(isValidMonthString("2026-00")).toBe(false);
-    expect(isValidMonthString("2026-1")).toBe(false);
-    expect(isValidMonthString(null)).toBe(false);
-  });
   it("builds readable labels", () => {
     expect(monthLabelOf("2026-10")).toBe("October 2026");
     expect(shortDate("2026-10-01")).toBe("01 Oct 2026");
     expect(shortDate("")).toBe("");
+    expect(shortDate("2026-09-05")).toBe("05 Sep 2026");
+    expect(shortDate("not a date")).toBe("");
   });
   it("describes every kind of date range", () => {
     expect(rangeLabel("2026-10-01", "2026-10-14")).toBe("01 Oct 2026 to 14 Oct 2026");

@@ -5,6 +5,7 @@ import { HEADS, HEAD_MAP, entry } from "./fixtures.js";
 const F = "Fatehpur Farm";
 const B = "Bhakkarpur Farm";
 const R = "Rehmanbad Farm";
+const OCT = { from: "2026-10-01", to: "2026-10-31" };
 
 const entries = [
   entry({ date: "2026-10-01", farm: F, headId: "sales", type: "Inflow", amount: 10000, hasAttachment: true }),
@@ -16,7 +17,7 @@ const entries = [
 ];
 
 describe("buildTotalReport", () => {
-  const report = buildTotalReport(entries, HEADS, HEAD_MAP, "2026-10");
+  const report = buildTotalReport(entries, HEADS, HEAD_MAP, OCT);
 
   it("totals inflow and outflow per farm and overall for the month only", () => {
     expect(report.totals.Inflow.total).toBe(10000);
@@ -34,23 +35,33 @@ describe("buildTotalReport", () => {
     expect(report.rows.find((r) => r.id === "old").active).toBe(false);
   });
   it("hides inactive heads without entries", () => {
-    const quiet = buildTotalReport([], HEADS, HEAD_MAP, "2026-10");
+    const quiet = buildTotalReport([], HEADS, HEAD_MAP, OCT);
     expect(quiet.rows.some((r) => r.id === "old")).toBe(false);
     expect(quiet.net.total).toBe(0);
   });
   it("keeps entries of deleted heads using their saved name and type", () => {
-    const r = buildTotalReport([entry({ date: "2026-10-01", headId: "gone", headName: "Gone", type: "Inflow", amount: 70 })], HEADS, HEAD_MAP, "2026-10");
+    const r = buildTotalReport([entry({ date: "2026-10-01", headId: "gone", headName: "Gone", type: "Inflow", amount: 70 })], HEADS, HEAD_MAP, OCT);
     const row = r.rows.find((x) => x.id === "gone");
     expect(row).toMatchObject({ name: "Gone", type: "Inflow", active: false, total: 70 });
     expect(r.totals.Inflow.total).toBe(70);
   });
   it("ignores entries with a missing date", () => {
-    expect(buildTotalReport([entry({ date: undefined })], HEADS, HEAD_MAP, "2026-10").count).toBe(0);
+    expect(buildTotalReport([entry({ date: undefined })], HEADS, HEAD_MAP, OCT).count).toBe(0);
+  });
+});
+
+describe("date ranges in Total Report", () => {
+  it("covers several months, and an open range covers everything", () => {
+    expect(buildTotalReport(entries, HEADS, HEAD_MAP, { from: "2026-09-01", to: "2026-10-31" }).count).toBe(5);
+    expect(buildTotalReport(entries, HEADS, HEAD_MAP, { from: "", to: "" }).count).toBe(5);
+  });
+  it("includes both end dates", () => {
+    expect(buildTotalReport(entries, HEADS, HEAD_MAP, { from: "2026-10-02", to: "2026-10-02" }).count).toBe(2);
   });
 });
 
 describe("buildFarmReport", () => {
-  const r = buildFarmReport(entries, HEAD_MAP, "2026-10", F);
+  const r = buildFarmReport(entries, HEAD_MAP, OCT, F);
 
   it("only includes the farm's entries of the month, oldest first", () => {
     expect(r.entries.map((x) => x.date)).toEqual(["2026-10-01", "2026-10-02"]);
@@ -70,7 +81,7 @@ describe("buildFarmReport", () => {
     expect(r.slipCount).toBe(1);
   });
   it("is empty for a month without entries", () => {
-    const empty = buildFarmReport(entries, HEAD_MAP, "2025-01", F);
+    const empty = buildFarmReport(entries, HEAD_MAP, { from: "2025-01-01", to: "2025-01-31" }, F);
     expect(empty).toMatchObject({ entries: [], heads: [], net: 0, inflowCount: 0, slipCount: 0 });
   });
 });

@@ -237,10 +237,6 @@
           <div class="report-toolbar">
             <div class="report-filters">
               <!-- data-views = the report types that show this filter -->
-              <div data-views="total farm">
-                <label for="rpt-month">Month</label>
-                <input type="month" id="rpt-month">
-              </div>
               <div data-views="farm">
                 <label for="rpt-farm">Farm</label>
                 <select id="rpt-farm"></select>
@@ -253,11 +249,11 @@
                 <label for="rpt-hfarm">Farm</label>
                 <select id="rpt-hfarm"></select>
               </div>
-              <div data-views="head">
+              <div data-views="total farm head">
                 <label for="rpt-from">From</label>
                 <input type="date" id="rpt-from">
               </div>
-              <div data-views="head">
+              <div data-views="total farm head">
                 <label for="rpt-to">To</label>
                 <input type="date" id="rpt-to">
               </div>
@@ -303,7 +299,7 @@
               </thead>
               <tbody id="farm-tx-body"></tbody>
             </table>
-            <p id="farm-tx-empty" class="muted empty hidden">No transactions for this farm in this month.</p>
+            <p id="farm-tx-empty" class="muted empty hidden">No transactions for this farm in these dates.</p>
           </div>
         </div>
 

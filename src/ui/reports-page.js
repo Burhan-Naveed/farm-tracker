@@ -1,7 +1,7 @@
 // =========================================================
 // REPORTS page: three report types, each with CSV export and print.
-// - Total: all farms for one month
-// - Farm-wise: one farm's month with all its transactions
+// - Total: all farms for a date range
+// - Farm-wise: one farm in a date range, with all its transactions
 // - Head-wise: one head over any date range
 // =========================================================
 
@@ -10,7 +10,7 @@ import { buildFarmReport, buildHeadReport, buildTotalReport, orderedRange } from
 import { headNameOf, headTypeOf } from "../domain/heads.js";
 import { downloadCsv } from "../lib/csv.js";
 import {
-  currentMonthString, formatMoney, formatNumber, isValidMonthString, monthLabelOf, percentOf, rangeLabel, slugify, todayString
+  formatMoney, formatNumber, monthLabelOf, percentOf, rangeLabel, slugify, todayString
 } from "../lib/format.js";
 import { escapeHtml, tableRowsHtml } from "../lib/html.js";
 import { state } from "../state.js";
@@ -27,17 +27,17 @@ let reportView = "total";   // "total", "farm" or "head"
 // Reading the filters
 // ---------------------------------------------------------
 
-/** The chosen month, or the current month when the box is empty or invalid. */
-function selectedMonth() {
-  const month = $("rpt-month").value;
-  return isValidMonthString(month) ? month : currentMonthString();
-}
+/** The chosen From / To dates (swapped if entered the wrong way round). Empty = open ended. */
+const selectedRange = () => orderedRange($("rpt-from").value, $("rpt-to").value);
+
+/** "from-to" part of export file names, e.g. "2026-01-01_to_2026-10-23". */
+const rangeFilePart = ({ from, to }) => `${from || "start"}_to_${to || "today"}`;
 
 const selectedFarm = () => (CONFIG.farms.includes($("rpt-farm").value) ? $("rpt-farm").value : CONFIG.farms[0]);
 
 /** Head-wise filters. From/To are swapped if entered the wrong way round. */
 function headFilters() {
-  return { headId: $("rpt-head").value, farm: $("rpt-hfarm").value, ...orderedRange($("rpt-from").value, $("rpt-to").value) };
+  return { headId: $("rpt-head").value, farm: $("rpt-hfarm").value, ...selectedRange() };
 }
 
 // ---------------------------------------------------------
@@ -88,14 +88,14 @@ function transactionCsvRows(entries, columns) {
 // ---------------------------------------------------------
 
 function renderTotalReport() {
-  const month = selectedMonth();
-  const report = buildTotalReport(state.expenses, state.heads, state.headMap, month);
+  const range = selectedRange();
+  const report = buildTotalReport(state.expenses, state.heads, state.headMap, range);
   const farms = CONFIG.farms;
-  const monthLabel = monthLabelOf(month);
-  $("report-title").textContent = "Farm Report - " + monthLabel;
+  const label = rangeLabel(range.from, range.to);
+  $("report-title").textContent = "Farm Report - " + label;
 
   $("summary-cards").innerHTML =
-    moneySummaryCardHtml("All Farms - " + monthLabel, report.totals.Inflow.total, report.totals.Outflow.total, report.net.total, "overall") +
+    moneySummaryCardHtml("All Farms - " + label, report.totals.Inflow.total, report.totals.Outflow.total, report.net.total, "overall") +
     farms.map((f) => moneySummaryCardHtml(f, report.totals.Inflow.byFarm[f], report.totals.Outflow.byFarm[f], report.net.byFarm[f])).join("");
 
   const cells = (byFarm, total) => farms.map((f) => numCell(byFarm[f])).join("") + numCell(total);
@@ -114,8 +114,8 @@ function renderTotalReport() {
 }
 
 function exportTotalReport() {
-  const month = selectedMonth();
-  const report = buildTotalReport(state.expenses, state.heads, state.headMap, month);
+  const range = selectedRange();
+  const report = buildTotalReport(state.expenses, state.heads, state.headMap, range);
   const farms = CONFIG.farms;
   const rows = [["Head", "Type", ...farms.map((f) => f + " (PKR)"), "Total (PKR)"]];
   TYPES.forEach((type) => {
@@ -124,23 +124,23 @@ function exportTotalReport() {
     rows.push(["Total " + type, type, ...farms.map((f) => t.byFarm[f]), t.total]);
   });
   rows.push(["Net (Inflow - Outflow)", "", ...farms.map((f) => report.net.byFarm[f]), report.net.total]);
-  downloadCsv(`farm-report-${month}.csv`, rows);
+  downloadCsv(`farm-report-${rangeFilePart(range)}.csv`, rows);
 }
 
 // ---------------------------------------------------------
-// Farm-wise report (one farm, one month)
+// Farm-wise report (one farm, a date range)
 // ---------------------------------------------------------
 
 function renderFarmReport() {
-  const month = selectedMonth();
+  const range = selectedRange();
   const farm = selectedFarm();
-  const r = buildFarmReport(state.expenses, state.headMap, month, farm);
-  const title = `${farm} - ${monthLabelOf(month)}`;
+  const r = buildFarmReport(state.expenses, state.headMap, range, farm);
+  const title = `${farm} - ${rangeLabel(range.from, range.to)}`;
   $("report-title").textContent = title;
 
   $("farm-summary").innerHTML =
     moneySummaryCardHtml(title, r.totals.Inflow, r.totals.Outflow, r.net, "overall") +
-    cardHtml("This month", [
+    cardHtml("These dates", [
       { label: "Transactions", value: String(r.entries.length) },
       { label: "Inflow entries", value: String(r.inflowCount) },
       { label: "Outflow entries", value: String(r.entries.length - r.inflowCount) },
@@ -153,7 +153,7 @@ function renderFarmReport() {
       colspan: 3,
       rowsOf: (type) => r.heads.filter((h) => h.type === type),
       rowHtml: (h) => `<tr><td>${escapeHtml(h.name)}</td><td class="num">${h.count}</td>${numCell(h.total)}</tr>`,
-      emptyText: (type) => `No ${type.toLowerCase()} this month`,
+      emptyText: (type) => `No ${type.toLowerCase()} in these dates`,
       subtotalHtml: (type) => `<td></td>${numCell(r.totals[type])}`
     }) +
     `<tr class="net-row"><td>Net (Inflow - Outflow)</td><td></td>${numCell(r.net)}</tr></tbody>`;
@@ -165,17 +165,17 @@ function renderFarmReport() {
 }
 
 function exportFarmReport() {
-  const month = selectedMonth();
+  const range = selectedRange();
   const farm = selectedFarm();
-  const r = buildFarmReport(state.expenses, state.headMap, month, farm);
-  const rows = [[farm + " - " + month], [], ["Head", "Type", "Amount (PKR)"]];
+  const r = buildFarmReport(state.expenses, state.headMap, range, farm);
+  const rows = [[farm + " - " + rangeLabel(range.from, range.to)], [], ["Head", "Type", "Amount (PKR)"]];
   TYPES.forEach((type) => {
     r.heads.filter((h) => h.type === type).forEach((h) => rows.push([h.name, type, h.total]));
     rows.push(["Total " + type, type, r.totals[type]]);
   });
   rows.push(["Net (Inflow - Outflow)", "", r.net], [], ["Transactions"]);
   rows.push(...transactionCsvRows(r.entries, ["Date", "Head", "Type", "Amount (PKR)", "Paid By", "Note", "Attachment"]));
-  downloadCsv(`${slugify(farm)}-report-${month}.csv`, rows);
+  downloadCsv(`${slugify(farm)}-report-${rangeFilePart(range)}.csv`, rows);
 }
 
 // ---------------------------------------------------------
@@ -245,7 +245,7 @@ function exportHeadReport() {
   if (!f.farm) rows.push(["Farm", "Amount (PKR)"], ...CONFIG.farms.map((farm) => [farm, r.byFarm[farm]]), []);
   rows.push(["Month", "Amount (PKR)"], ...[...r.byMonth.entries()].map(([m, a]) => [monthLabelOf(m), a]), []);
   rows.push(...transactionCsvRows(r.entries, ["Date", "Farm", "Amount (PKR)", "Paid By", "Note", "Attachment"]));
-  downloadCsv(`${slugify(head.name)}-${slugify(f.farm || "all-farms")}-${f.from || "start"}_to_${f.to || "today"}.csv`, rows);
+  downloadCsv(`${slugify(head.name)}-${slugify(f.farm || "all-farms")}-${rangeFilePart(f)}.csv`, rows);
 }
 
 // ---------------------------------------------------------
@@ -277,14 +277,13 @@ export function refreshReportHeadOptions() {
 }
 
 export function initReportsPage() {
-  $("rpt-month").value = currentMonthString();
   fillSelect($("rpt-farm"), farmOptions(), CONFIG.farms[0]);
   fillSelect($("rpt-hfarm"), farmOptions("All farms (total)"), "");
-  // Head-wise report starts with this month so far
-  $("rpt-from").value = currentMonthString() + "-01";
+  // Reports start with this year so far
+  $("rpt-from").value = todayString().slice(0, 4) + "-01-01";
   $("rpt-to").value = todayString();
 
-  ["rpt-month", "rpt-farm", "rpt-head", "rpt-hfarm", "rpt-from", "rpt-to"].forEach((id) =>
+  ["rpt-farm", "rpt-head", "rpt-hfarm", "rpt-from", "rpt-to"].forEach((id) =>
     $(id).addEventListener("input", renderReports)
   );
   $("rpt-view").addEventListener("click", (e) => {

@@ -12,15 +12,18 @@ import { headNameOf, headTypeOf, sortedHeads } from "./heads.js";
 export const zeroByFarm = () => Object.fromEntries(CONFIG.farms.map((f) => [f, 0]));
 
 const isKnownFarm = (farm) => CONFIG.farms.includes(farm);
-const inMonth = (entry, month) => typeof entry.date === "string" && entry.date.startsWith(month);
+
+/** True when the entry's date is inside the range (empty from / to = open ended). */
+const inRange = (entry, { from, to }) =>
+  typeof entry.date === "string" && (!from || entry.date >= from) && (!to || entry.date <= to);
 
 /**
- * Total Report: all farms for one month ("YYYY-MM").
+ * Total Report: all farms for a date range ({ from, to }, "YYYY-MM-DD").
  * Rows = heads (active heads always, inactive heads only if they have entries),
  * with Inflow / Outflow subtotals and Net, per farm and in total.
  */
-export function buildTotalReport(entries, heads, headMap, month) {
-  const monthEntries = entries.filter((x) => inMonth(x, month) && isKnownFarm(x.farm));
+export function buildTotalReport(entries, heads, headMap, range) {
+  const rangeEntries = entries.filter((x) => inRange(x, range) && isKnownFarm(x.farm));
   const rowMap = new Map();
 
   // Start with every active head so the table always shows the full list
@@ -30,7 +33,7 @@ export function buildTotalReport(entries, heads, headMap, month) {
 
   const totals = Object.fromEntries(TYPES.map((t) => [t, { byFarm: zeroByFarm(), total: 0 }]));
 
-  monthEntries.forEach((x) => {
+  rangeEntries.forEach((x) => {
     const type = headTypeOf(x, headMap);
     if (!rowMap.has(x.headId)) {
       const head = headMap.get(x.headId);
@@ -49,17 +52,17 @@ export function buildTotalReport(entries, heads, headMap, month) {
   const net = { byFarm: zeroByFarm(), total: addMoney(totals.Inflow.total, -totals.Outflow.total) };
   CONFIG.farms.forEach((f) => { net.byFarm[f] = addMoney(totals.Inflow.byFarm[f], -totals.Outflow.byFarm[f]); });
 
-  return { rows: sortedHeads([...rowMap.values()]), totals, net, count: monthEntries.length };
+  return { rows: sortedHeads([...rowMap.values()]), totals, net, count: rangeEntries.length };
 }
 
 /**
- * Farm-wise report: one farm for one month.
+ * Farm-wise report: one farm for a date range ({ from, to }).
  * Returns totals, head-wise totals (only heads used, biggest first)
  * and the list of transactions, oldest first.
  */
-export function buildFarmReport(entries, headMap, month, farm) {
+export function buildFarmReport(entries, headMap, range, farm) {
   const farmEntries = entries
-    .filter((x) => x.farm === farm && inMonth(x, month))
+    .filter((x) => x.farm === farm && inRange(x, range))
     .sort(compareOldestFirst);
 
   const headRows = new Map();
@@ -94,8 +97,7 @@ export function orderedRange(from, to) {
  */
 export function buildHeadReport(entries, { headId, farm, from, to }) {
   const headEntries = entries
-    .filter((x) => x.headId === headId && (!farm || x.farm === farm) &&
-      (!from || x.date >= from) && (!to || x.date <= to))
+    .filter((x) => x.headId === headId && (!farm || x.farm === farm) && inRange(x, { from, to }))
     .sort(compareOldestFirst);
 
   const byFarm = zeroByFarm();
